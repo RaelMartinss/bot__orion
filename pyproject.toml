@@ -1,0 +1,17 @@
+[project]
+name = "orion-bot"
+version = "0.1.0"
+description = "Bot Telegram para controle remoto do PC"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot>=21.0",
+    "pycaw>=20240210",
+    "comtypes>=1.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
