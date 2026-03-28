@@ -23,7 +23,6 @@ MAX_TOKENS = 2048
 
 def _get_api_key() -> str:
     key = os.environ.get("ANTHROPIC_API_KEY", "")
-    print('ANTHROPIC_API_KEY', key)
     if not key:
         raise APIError(
             "ANTHROPIC_API_KEY não configurada.\n"

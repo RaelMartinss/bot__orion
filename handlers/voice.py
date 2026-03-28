@@ -18,6 +18,8 @@ from telegram.ext import ContextTypes
 from utils.intent_parser import parse_intent, extract_orion_command
 from utils.executor import executar_intent
 import utils.mic_listener as mic_listener
+from utils.memoria import carregar_historico, persistir_historico, carregar_memoria_longa
+from utils.tts_manager import gerar_audio, limpar_audio
 
 logger = logging.getLogger(__name__)
 
@@ -49,28 +51,77 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto_para_ia = comando if tem_wake_word else texto_original
 
+    from utils.orchestrator import try_local_route
+    local_result = try_local_route(texto_para_ia)
+    if local_result is not None:
+        mem = carregar_memoria_longa(user_id=update.effective_user.id)
+        voice_active = mem.get("preferencias", {}).get("voice_active", False)
+
+        if voice_active:
+            audio_path = await gerar_audio(local_result)
+            if audio_path:
+                try:
+                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=local_result)
+                finally:
+                    limpar_audio(audio_path)
+            else:
+                await update.message.reply_text(local_result)
+        else:
+            await update.message.reply_text(local_result)
+
+        from telegram.ext import ConversationHandler
+        return ConversationHandler.END
+
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     from utils.orchestrator import run_orchestrator
     
-    # Resgata memória amnésica para passar como contexto
-    historico = context.user_data.get("chat_history", [])
+    user_id = update.effective_user.id
+    # Resgata memória amnésica para passar como contexto — agora via JSON persistente
+    historico = carregar_historico(user_id)
     
-    # Executa a orquestração via Cloud (Tool Use) enviando o histórico
-    result = await run_orchestrator(texto_para_ia, chat_history=historico)
+    async def notificar_imediato_telegram(msg_texto: str):
+        """Callback para enviar mensagem imediata no Telegram."""
+        if msg_texto:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=msg_texto,
+                parse_mode="Markdown"
+            )
+
+    # Executa a orquestração passando o callback de notificação imediata
+    result = await run_orchestrator(
+        texto_para_ia, 
+        chat_history=historico, 
+        user_id=user_id, 
+        is_mic=False,
+        notifier_callback=notificar_imediato_telegram
+    )
     
-    # Salva o resultado do novo histórico para não sofrer amnésia
+    # Salva o resultado do novo histórico para não sofrer amnésia (JSON)
     if "new_history" in result:
+        persistir_historico(user_id, result["new_history"])
+        # Mantém no context também para legibilidade de sessão, se necessário
         context.user_data["chat_history"] = result["new_history"]
     
-    # Opcional: Mostra a resposta do bot (pós ferramentas)
-    if result.get("response"):
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        games = result.get("games_listed", [])
-        if games:
-            buttons = [[InlineKeyboardButton(f"🕹️ Abrir {j}", callback_data=f"abrir_jogo|{j}")] for j in games]
-            reply_markup = InlineKeyboardMarkup(buttons)
-            await update.message.reply_text(result["response"], parse_mode="Markdown", reply_markup=reply_markup)
+    # Opcional: Mostra a resposta do bot (pós ferramentas). 
+    # Se ele já notificou via tool, a resposta final será "Tarefas finalizadas..."
+    if result.get("response") and "Tarefas finalizadas" not in result["response"]:
+        # Verifica se o usuário quer resposta por voz
+        mem = carregar_memoria_longa(user_id)
+        voice_active = mem.get("preferencias", {}).get("voice_active", False)
+        
+        if voice_active:
+            # Envia áudio
+            audio_path = await gerar_audio(result["response"])
+            if audio_path:
+                try:
+                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=result["response"])
+                finally:
+                    limpar_audio(audio_path)
+            else:
+                # Fallback para texto se falhar o TTS
+                await update.message.reply_text(result["response"])
         else:
             await update.message.reply_text(result["response"], parse_mode="Markdown")
         

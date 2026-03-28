@@ -47,7 +47,7 @@ REGRAS OBRIGATÓRIAS — qualquer violação torna o código inválido:
 2. A função deve aceitar exatamente (update, context) como parâmetros.
 3. PROIBIDO importar: socket, ctypes, winreg, importlib, ast, builtins, shutil.
 4. PROIBIDO usar: exec(), eval(), __import__(), compile().
-5. `subprocess.run(comando, shell=True)` É MITO PERMITIDO E ENCORAJADO para executar comandos de terminal, utilitários CLI (npm, git, etc) e encadeamentos (&&). Você deve atuar como um orquestrador de sistema real.
+5. `await (await asyncio.create_subprocess_shell(comando, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)).communicate()` É MUITO PERMITIDO E ENCORAJADO para executar comandos de terminal. SEMPRE use o padrão ASSÍNCRONO do asyncio para não travar o bot. Jamais use `subprocess.run` ou `os.system`.
 6. REGRA DE SEGURANÇA (DELEÇÃO): Se o comando envolver apagar arquivos/pastas (rm, rmdir, del), você SÓ DEVE permitir que ele apague itens que o próprio bot/comando acabou de criar. É estritamente proibido apagar pastas genéricas ou arquivos preexistentes do usuário.
 7. PARÂMETROS DINÂMICOS: Se a intenção do usuário implicar parâmetros (ex: "crie um projeto chamado X", "pesquise Y"), não crie código hardcoded! Acesse os parâmetros recebidos através da variável `context.args` para que o comando possa ser reutilizável (Ex: `/nome_do_comando <param1> <param2>`).
 8. Sempre incluir try/except com reply_text de erro e sempre incluir logger.
@@ -148,14 +148,18 @@ async def react_app(update, context):
         # Cria projeto e instala dependencias (Node/npm requerido)
         cmd = f"cd {desktop_path} && npx create-vite {folder_name} --template react && cd {folder_name} && npm install"
         
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True
+        import asyncio
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
+        stdout, stderr = await process.communicate()
         
-        if result.returncode == 0:
+        if process.returncode == 0:
             await update.message.reply_text(f"✅ Projeto {folder_name} criado com sucesso!", parse_mode="Markdown")
         else:
-            await update.message.reply_text(f"❌ Falha: {result.stderr}", parse_mode="Markdown")
+            await update.message.reply_text(f"❌ Falha: {stderr.decode()}", parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Erro em react_app: {e}")

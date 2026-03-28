@@ -1,0 +1,9 @@
+{
+  "fatos": [
+    "O nome do usuário é Rael.",
+    "O usuário mora em Paragominas, Pará, Brasil."
+  ],
+  "preferencias": {
+    "voice_active": true
+  }
+}

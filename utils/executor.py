@@ -106,6 +106,11 @@ def executar_intent(intent: dict) -> str:
         os.system("shutdown /a")
         return "✅ Desligamento cancelado."
 
+    # Tenta carregar módulos dinâmicos da pasta /plugins
+    resultado_custom = _executar_modulo_custom(action, query)
+    if resultado_custom:
+        return resultado_custom
+
     return "❓ Não entendi o comando."
 
 
@@ -231,3 +236,31 @@ def _mute() -> str:
         return "🔇 *Mutado*" if not estado else "🔊 *Desmutado*"
     except Exception as e:
         return f"❌ Erro no mute: {e}"
+
+def _executar_modulo_custom(action: str, query: str | None) -> str | None:
+    """
+    Tenta encontrar e executar um script em /plugins/ que corresponda à action.
+    """
+    try:
+        import importlib.util
+        import sys
+        
+        modulo_path = os.path.join("plugins", f"{action}.py")
+        if not os.path.exists(modulo_path):
+            return None
+            
+        spec = importlib.util.spec_from_file_location(action, modulo_path)
+        if spec and spec.loader:
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            # Procura uma função 'run' ou 'executar' no módulo
+            func = getattr(module, "run", getattr(module, "executar", None))
+            if func:
+                return func(query)
+            return f"⚠️ Módulo '{action}' encontrado, mas falta função 'run(query)'."
+    except Exception as e:
+        logger.error(f"Erro ao executar módulo custom {action}: {e}")
+        return f"❌ Erro no módulo custom '{action}': {e}"
+    
+    return None

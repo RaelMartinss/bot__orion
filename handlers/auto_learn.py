@@ -38,9 +38,10 @@ from utils.handler_registry import (
     update_telegram_menu,
 )
 from utils.transcriber import transcrever_audio
-from utils.intent_parser import parse_intent, extract_orion_command
 from utils.executor import executar_intent
 import utils.mic_listener as mic_listener
+from utils.memoria import carregar_historico, persistir_historico, carregar_memoria_longa
+from utils.tts_manager import gerar_audio, limpar_audio
 
 logger = logging.getLogger(__name__)
 
@@ -213,22 +214,43 @@ async def handle_voice_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         from utils.orchestrator import run_orchestrator
         
-        historico = context.user_data.get("chat_history", [])
-        result = await run_orchestrator(texto, chat_history=historico)
+        user_id = update.effective_user.id
+        historico = carregar_historico(user_id)
+        # is_mic=False pois veio via Telegram a partir de handle_text (aprendizado)
+        result = await run_orchestrator(texto, chat_history=historico, user_id=user_id, is_mic=False)
         
         if "new_history" in result:
+            persistir_historico(user_id, result["new_history"])
             context.user_data["chat_history"] = result["new_history"]
 
 
         if result.get("response"):
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             games = result.get("games_listed", [])
+            reply_markup = None
             if games:
                 buttons = [[InlineKeyboardButton(f"🕹️ Abrir {j}", callback_data=f"abrir_jogo|{j}")] for j in games]
                 reply_markup = InlineKeyboardMarkup(buttons)
-                await msg.edit_text(f"🗣️ _{texto}_\n\n{result['response']}", parse_mode="Markdown", reply_markup=reply_markup)
+            
+            # Verifica se o usuário quer resposta por voz
+            mem = carregar_memoria_longa(user_id)
+            voice_active = mem.get("preferencias", {}).get("voice_active", False)
+            
+            if voice_active:
+                # Gera e envia áudio (mensagem de voz)
+                audio_path = await gerar_audio(result["response"])
+                if audio_path:
+                    try:
+                        # Responde com o áudio (caption mantém o texto para log)
+                        await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=result["response"])
+                        # Remove a mensagem de "Analisando..."
+                        await msg.delete()
+                    finally:
+                        limpar_audio(audio_path)
+                else:
+                    await msg.edit_text(f"🗣️ _{texto}_\n\n{result['response']}", parse_mode="Markdown", reply_markup=reply_markup)
             else:
-                await msg.edit_text(f"🗣️ _{texto}_\n\n{result['response']}", parse_mode="Markdown")
+                await msg.edit_text(f"🗣️ _{texto}_\n\n{result['response']}", parse_mode="Markdown", reply_markup=reply_markup)
 
         if result.get("wants_to_learn"):
             # Guarda a transcrição e pergunta antes de criar usando os botões inline
@@ -406,5 +428,6 @@ def build_auto_learn_handler() -> ConversationHandler:
         ],
         per_chat=True,
         per_user=True,
+        per_message=True,
         conversation_timeout=120,
     )

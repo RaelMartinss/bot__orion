@@ -28,6 +28,7 @@ _bot = None
 _loop: asyncio.AbstractEventLoop | None = None
 _stop_event = threading.Event()
 _thread: threading.Thread | None = None
+_user_id: int = 0  # Preenchido via main.py ou automaticamente
 
 
 def configure(loop: asyncio.AbstractEventLoop, bot):
@@ -37,10 +38,12 @@ def configure(loop: asyncio.AbstractEventLoop, bot):
     _bot = bot
 
 
-def update_chat_id(chat_id: int):
-    """Atualiza o chat_id para onde notificações serão enviadas."""
-    global _chat_id
+def update_chat_id(chat_id: int, user_id: int = 0):
+    """Atualiza o chat_id e user_id para contexto e notificações."""
+    global _chat_id, _user_id
     _chat_id = chat_id
+    if user_id:
+        _user_id = user_id
 
 
 def iniciar():
@@ -93,17 +96,76 @@ def _loop_mic():
             logger.debug(f"🎙️ Wake word ausente: '{texto}'")
             continue
 
-        intent = parse_intent(comando)
-        if intent["action"] == "desconhecido":
-            logger.debug(f"🎙️ Sem intenção reconhecida para: '{comando}'")
-            continue
+        logger.info(f"🎙️ Wake word detectada! Comando: '{comando}'")
+        
+        # Execução Inteligente (Jarvis Mode)
+        _processar_comando_async(comando)
 
-        texto = comando  # usa o texto limpo na notificação
 
-        resultado = executar_intent(intent)
+def _processar_comando_async(comando: str):
+    """Encapsula a lógica assíncrona para ser chamada de uma thread."""
+    if not _loop:
+        return
 
-        logger.info(f"🎙️ Executado: {resultado}")
-        _notificar_telegram(texto, resultado)
+    async def _task():
+        from utils.orchestrator import run_orchestrator, try_local_route
+        from utils.memoria import carregar_historico, persistir_historico
+        from utils.tts_manager import gerar_audio, reproduzir_local, limpar_audio
+
+        async def notificar_imediato_mic(msg_texto: str):
+            """Callback para falar imediatamente via speakers."""
+            logger.info(f"🎙️ Notificação Imediata (Mic): {msg_texto}")
+            a_path = await gerar_audio(msg_texto)
+            if a_path:
+                try:
+                    reproduzir_local(a_path, wait=True)
+                finally:
+                    limpar_audio(a_path)
+
+        # 1. Carrega o contexto (memória curto prazo)
+        historico = carregar_historico(_user_id)
+
+        # 1.5. Tenta rota local determinística antes de chamar a IA
+        local_result = try_local_route(comando)
+        if local_result is not None:
+            logger.info(f"🎙️ Rota local aplicada no mic para comando: {comando}")
+            audio_path = await gerar_audio(local_result)
+            if audio_path:
+                try:
+                    reproduzir_local(audio_path, wait=True)
+                finally:
+                    limpar_audio(audio_path)
+            _notificar_telegram(comando, local_result)
+            return
+
+        # 2. Chama o "Cérebro" (Claude) passando o callback de voz imediato
+        result = await run_orchestrator(
+            comando, 
+            chat_history=historico, 
+            user_id=_user_id, 
+            is_mic=True,
+            notifier_callback=notificar_imediato_mic
+        )
+        
+        resposta = result.get("response", "")
+        # Se Claude não usou a tool de notificação imediata, fala a resposta final aqui
+        if resposta and "Tarefas finalizadas" not in resposta:
+            logger.info(f"🎙️ Resposta Final (Mic): {resposta}")
+            audio_path = await gerar_audio(resposta)
+            if audio_path:
+                try:
+                    reproduzir_local(audio_path, wait=True)
+                finally:
+                    limpar_audio(audio_path)
+            
+            # Notifica o Telegram
+            _notificar_telegram(comando, resposta)
+
+        # 5. Salva no histórico persistente
+        if "new_history" in result:
+            persistir_historico(_user_id, result["new_history"])
+
+    asyncio.run_coroutine_threadsafe(_task(), _loop)
 
 
 def _extrair_comando(texto: str) -> str | None:
@@ -117,7 +179,8 @@ def _extrair_comando(texto: str) -> str | None:
     # Remove pontuação do início antes de checar
     t = re.sub(r'^[,.\s]+', '', t)
     # Aceita variações fonéticas que o Whisper pode gerar
-    padrao = r'^(orion|órion|oryon|orin|oron|ori[aã]o|orião)\s*[,.]?\s*'
+    # Adicionado variações fonéticas detectadas nos logs: 'óreum', 'orião', 'hóreo', 'hóreum'
+    padrao = r'^(orion|órion|oryon|orin|oron|ori[aã]o|orião|olha|orio|on|audio|olho|óreum|orião|hóreo|hóreum)\s*[,.]?\s*'
     m = re.match(padrao, t)
     if not m:
         return None
@@ -188,10 +251,13 @@ def _notificar_telegram(texto: str, resultado: str):
 
     async def _send():
         try:
+            # Envia mensagem silenciosa (sem som/notificação no celular)
+            # para logar a atividade do PC sem poluir o chat principal
             await _bot.send_message(
                 chat_id=_chat_id,
-                text=f"🎙️ _Voz:_ {texto}\n\n{resultado}",
+                text=f"🖥️ _Log Mic-Local_:\n> {texto}\n\n{resultado}",
                 parse_mode="Markdown",
+                disable_notification=True
             )
         except Exception as e:
             logger.warning(f"Falha ao notificar Telegram: {e}")

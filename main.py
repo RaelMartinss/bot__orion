@@ -2,12 +2,13 @@ import asyncio
 import logging
 import os
 
-from telegram import BotCommand
+from telegram import BotCommand, Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, ConversationHandler,
-    MessageHandler, CallbackQueryHandler, filters,
+    MessageHandler, CallbackQueryHandler, filters, ContextTypes,
 )
 
+from utils.memoria import carregar_memoria_longa, salvar_preferencia
 from handlers.start import start
 from handlers.jogos import jogo, listar_jogos, handle_jogo_botoes
 from handlers.midia import youtube, netflix, spotify
@@ -37,19 +38,46 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = os.environ.get('TOKEN_TELEGRAM')
+ADMIN_ID = 178663471  # ID do Rael para o Mic Listener usar a mesma consciência
+
+
+async def handle_voz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ativa ou desativa a resposta por voz."""
+    user_id = update.effective_user.id
+    mem = carregar_memoria_longa(user_id)
+    atual = mem.get("preferencias", {}).get("voice_active", False)
+    
+    novo_estado = not atual
+    salvar_preferencia(user_id, "voice_active", novo_estado)
+    
+    status = "ATIVADO 🔊" if novo_estado else "DESATIVADO 🔇"
+    await update.message.reply_text(f"Protocolo de voz {status}.")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Exibe a lista de comandos do Orion."""
+    help_text = (
+        "🤖 *ORION - Comandos Disponíveis*\n\n"
+        "/start - Iniciar o sistema\n"
+        "/ajuda - Mostrar esta lista\n"
+        "/voz - Ligar/Desligar respostas por voz\n"
+        "/cancelar - Abortar operação atual\n\n"
+        "🎙️ *Dica*: Você pode falar diretamente comigo enviando áudios!"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
 async def _run():
     app = (
         ApplicationBuilder()
         .token(TOKEN)
-        .post_init(on_startup)   # ← FIX 1: conecta o on_startup
         .build()
     )
 
     # Comandos padrão
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ajuda", start))
+    app.add_handler(CommandHandler("ajuda", help_command))
+    app.add_handler(CommandHandler("voz", handle_voz))
     app.add_handler(CommandHandler("jogos", listar_jogos))
     app.add_handler(CommandHandler("jogo", jogo))
     app.add_handler(CommandHandler("youtube", youtube))
@@ -77,8 +105,8 @@ async def _run():
 
     # CallbackQueryHandler separado: captura botões inline learn_yes/learn_no
     # quando o fluxo foi disparado pelo handle_text (fora do ConversationHandler)
-    app.add_handler(CallbackQueryHandler(handle_confirmation_callback, pattern="^learn_(yes|no)$"))
-    app.add_handler(CallbackQueryHandler(handle_jogo_botoes, pattern="^abrir_jogo\|"))
+    app.add_handler(CallbackQueryHandler(handle_confirmation_callback, pattern=r"^learn_(yes|no)$"))
+    app.add_handler(CallbackQueryHandler(handle_jogo_botoes, pattern=r"^abrir_jogo\|"))
 
     # Texto livre (fica DEPOIS do ConversationHandler para nao interceptar estados)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
@@ -94,6 +122,7 @@ async def _run():
 
         loop = asyncio.get_running_loop()
         mic_listener.configure(loop=loop, bot=app.bot)
+        mic_listener.update_chat_id(chat_id=ADMIN_ID, user_id=ADMIN_ID)
         mic_listener.iniciar()
 
         logger.info("✅ Orion Bot rodando — voz, texto e microfone ativos.")
