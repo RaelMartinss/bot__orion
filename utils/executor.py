@@ -19,6 +19,29 @@ def executar_intent(intent: dict) -> str:
     query = intent.get("query")
     delay = intent.get("delay")
 
+    if action == "saudacao":
+        from datetime import datetime
+        hora = datetime.now().hour
+        if hora < 12:
+            periodo = "bom dia"
+        elif hora < 18:
+            periodo = "boa tarde"
+        else:
+            periodo = "boa noite"
+        return f"🤖 {periodo.capitalize()}! Sou o *Orion*, seu assistente pessoal.\nComo posso ajudar?"
+
+    if action == "apresentar":
+        return (
+            "🤖 Olá! Eu sou o *Orion*, seu assistente pessoal.\n\n"
+            "Posso:\n"
+            "• Tocar música no Spotify ou YouTube\n"
+            "• Abrir jogos da Steam\n"
+            "• Controlar o volume\n"
+            "• Desligar/reiniciar o PC\n"
+            "• Criar novos comandos personalizados\n\n"
+            "_Pode me chamar por voz dizendo 'Orion' + o que você quer!_"
+        )
+
     if action == "spotify":
         if query:
             # URI scheme abre o app do Spotify diretamente (sem browser)

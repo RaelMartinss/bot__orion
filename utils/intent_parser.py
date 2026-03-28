@@ -5,19 +5,40 @@ Analisa texto em linguagem natural (PT-BR) e retorna uma intenção estruturada.
 
 import re
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Variações de nome aceitas (Whisper pode transcrever diferente)
+_ORION_PATTERN = r'^(orion|[óo]rion|oryon|orin|oron|ori[aã]o|orião)[,.]?\s*'
+
+
+def extract_orion_command(texto: str) -> tuple[bool, str]:
+    """
+    Verifica se o texto começa com 'Orion' (a wake word).
+    Retorna (True, restante_do_comando) ou (False, texto_original).
+    Aceita variações fonéticas geradas pelo Whisper.
+    """
+    t = texto.strip()
+    m = re.match(_ORION_PATTERN, t, re.IGNORECASE)
+    if not m:
+        return False, t
+    comando = t[m.end():].strip()
+    return True, comando
 
 
 def parse_intent(texto: str) -> dict:
     """
     Retorna dict com:
       action: spotify | youtube | netflix | jogo | vol_up | vol_down | mute |
-              desligar | reiniciar | cancelar | desconhecido
+              desligar | reiniciar | cancelar | saudacao | apresentar | desconhecido
       query:  str | None
       delay:  int | None
+      saudacao: str | None  (mensagem de resposta para ação=saudacao)
     """
     t = texto.lower().strip()
+
+    # Saudações e apresentações foram removidas do Regex para que o Claude (LLM) lide com elas de forma 100% natural.
 
     # ── Volume ──────────────────────────────────────────────────────────────
     if _match(t, r'\b(muta|mutar|mute|silencia|silenciar|silêncio|silencio|cala|calar)\b'):

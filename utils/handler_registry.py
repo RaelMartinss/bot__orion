@@ -72,7 +72,13 @@ def load_and_register(app: Application, command_name: str) -> bool:
         if isinstance(h, CommandHandler) and command_name in (h.commands or set()):
             app.remove_handler(h, group=0)
 
-    app.add_handler(CommandHandler(command_name, handler_func))
+    handler = CommandHandler(command_name, handler_func)
+    
+    # Adicionamos no topo da lista (antes do ConversationHandler genérico de auto_learn)
+    if 0 not in app.handlers:
+        app.handlers[0] = []
+    app.handlers[0].insert(0, handler)
+    
     logger.info(f"Handler /{command_name} registrado no app.")
     return True
 

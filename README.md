@@ -1,164 +1,230 @@
-# 🛰️ Orion Bot
+# Orion Bot
 
-Bot Telegram para controle remoto do seu PC Windows com suporte a **comandos por voz, texto livre e microfone**.
+Bot Telegram inteligente para controle remoto de PC Windows via voz, texto e microfone integrado. Combina automação nativa com IA generativa para criar uma experiência natural de comando por voz.
 
----
+## 🎯 Propósito Principal
 
-## Requisitos
+- **Controle remoto**: Executar ações no PC (volume, mídia, jogos, sistema) via Telegram
+- **Interface multimodal**: Aceita comandos por **voz** (Telegram/mic), **texto livre** e **comandos fixos**
+- **Auto-aprendizado**: IA (Claude) gera novos comandos dinamicamente sem reiniciar o bot
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) (gerenciador de pacotes)
-- Steam instalado (para comandos de jogos)
-- Windows 10/11
+## 🔧 Stack Tecnológico
 
----
+- **Python 3.11+** com `asyncio` para concorrência
+- **Telegram Bot API** (python-telegram-bot v21+)
+- **Claude Sonnet 4.6** (Anthropic) para geração de código
+- **Whisper** (offline) para transcrição de voz
+- **Windows APIs** (pycaw, pyautogui) para automação
 
-## Instalação
+## 🏗️ Arquitetura Modular
+
+- **`handlers/`**: Lógica de comandos (voz, jogos, mídia, volume, sistema)
+- **`utils/`**: Núcleo IA (Claude client, intent parser, executor, mic listener)
+- **`main.py`**: Inicialização e registro de handlers
+
+## 🔄 Como Funciona
+
+1. **Entradas**: Voz no Telegram, texto livre, ou microfone do PC (palavra-chave "orion")
+2. **Processamento**: Whisper transcreve → NLP extrai intenção → executor roda ação
+3. **IA Dinâmica**: Comandos desconhecidos geram handlers Python automaticamente
+4. **Feedback**: Notificações instantâneas no Telegram
+
+## 🎙️ Exemplos de Uso
+
+- **Voz**: "aumenta volume" ou "toca Beatles no Spotify"
+- **Texto**: `/volume 50` ou "abre Minecraft"
+- **Sistema**: "desliga em 5 minutos" ou "reinicia"
+
+## 💡 Diferencial
+
+- **Offline-first**: Transcrição local (não envia áudio para APIs)
+- **Inteligente**: Entende linguagem natural em português
+- **Extensível**: IA adiciona funcionalidades em runtime
+- **Thread-safe**: Microfone em background + Telegram assíncrono
+
+## 📋 Resumo Completo do Projeto
+
+### 🎯 **Propósito**
+Bot Telegram para controle remoto de PC Windows via comandos por **voz**, **texto livre** e **microfone do PC**. Combina IA (Claude) para aprender novos comandos dinamicamente com controle nativo de sistema.
+
+### 🔧 **Tecnologias Usadas**
+
+| Componente | Tecnologia |
+|---|---|
+| **Framework Bot** | python-telegram-bot v21.0+ |
+| **IA Generativa** | Claude Sonnet 4.6 (Anthropic API) |
+| **Transcrição** | Faster Whisper (speech-to-text offline) |
+| **Áudio** | sounddevice, pycaw (volume/controle) |
+| **Automação** | pyautogui, comtypes |
+| **Streaming** | yt-dlp (YouTube), spotify: URI scheme |
+| **HTTP** | httpx (async) |
+| **Config** | python-dotenv |
+| **Python** | 3.11+ |
+
+### 🏗️ **Arquitetura**
+
+#### **Estrutura de Diretórios**
+```
+handlers/          # Lógica de comandos
+├── voice.py       # Transcrição e execução (áudio Telegram)
+├── start.py       # Comando /start
+├── jogos.py       # Abrir games (Steam)
+├── midia.py       # Spotify, Netflix, YouTube
+├── controle.py    # Play/Pause/Próxima/Anterior
+├── volume.py      # Controle de volume
+├── sistema.py     # Desligar/Reiniciar
+├── auto_learn.py  # IA: gerar handlers e registrar dinamicamente
+└── custom/        # Handlers auto-gerados
+
+utils/             # Núcleo da IA e execução
+├── claude_client.py      # Wrapper API Anthropic
+├── intent_parser.py      # NLP: extrair ação + query do texto
+├── executor.py           # Executar intents (ativo/inativo Telegram)
+├── prompt_builder.py     # Construir prompts para Claude
+├── code_validator.py     # Validar código Python gerado
+├── handler_registry.py   # Salvar, registrar, atualizar menu
+├── mic_listener.py       # Ouvir microfone em background
+├── transcriber.py        # Whisper (file + numpy)
+└── steam_scanner.py      # Detect games no Steam
+
+main.py            # Inicialização da aplicação
+```
+
+### 🔄 **Fluxo de Funcionamento**
+
+#### **1️⃣ Entrada de Comandos (3 canais)**
+
+```
+┌─────────────────────────────────────────┐
+│   Telegram (áudio/texto)                │
+│   Microfone do PC                       │
+└──────────────┬──────────────────────────┘
+               ↓
+        Normalizar Texto
+               ↓
+        Intent Parser (NLP + Regex)
+               ↓
+         Executor (ação)
+```
+
+#### **2️⃣ Pipeline de Voz**
+- **Telegram áudio** → `handle_voice()` → Whisper (offline) → `intent_parser` → `executor`
+- **Microfone** → `mic_listener` (background) → Whisper → `intent_parser` → notificação Telegram
+
+#### **3️⃣ Auto-aprendizado (IA)**
+```
+/comando_desconhecido
+  ↓
+[Bot pergunta a intenção]
+  ↓
+Claude gera handler Python
+  ↓
+Validar código (AST check)
+  ↓
+Salvar em handlers/custom/<comando>.py
+  ↓
+Registrar em runtime (sem restart)
+  ↓
+Atualizar menu Telegram (/command)
+```
+
+### 🎙️ **Parser de Intenção**
+
+Reconhece naturalmente em PT-BR (sem palavra de ativação):
+
+| Ação | Exemplos |
+|---|---|
+| **Spotify** | "toca menino da porteira", "coloca raul seixas" |
+| **YouTube** | "youtube lofi hip hop", "assistir vídeo" |
+| **Netflix** | "netflix breaking bad", "filme interestelar" |
+| **Jogos** | "abre minecraft", "joga counter strike" |
+| **Volume** | "aumenta volume", "baixa 20", "muta" |
+| **Controle** | "pausa", "próxima", "anterior" |
+| **Sistema** | "desliga", "desliga em 300", "reinicia" |
+
+### 🔗 **Integrações Principais**
+
+#### **Claude (Anthropic)**
+- **Uso**: Gerar handlers Python para comandos novos
+- **Model**: claude-sonnet-4-6
+- **Flow**:
+  - Sistema: prompt com restrições (segurança, estilo)
+  - User: intenção descrita pelo usuário
+  - Output: código validado + registrado em runtime
+
+#### **Telegram (python-telegram-bot)**
+- **Handlers**: CommandHandler, MessageHandler, ConversationHandler
+- **Modo**: Polling (servidor remoto, não precisa port aberto)
+- **Features**:
+  - Notificações de voz do PC
+  - Menu dinâmico (`/start`, custom commands)
+  - Estados conversacionais (volume set, auto-learn)
+
+#### **Whisper (Faster-Whisper)**
+- **Função**: Transcrição offline (não envia áudio pra API)
+- **Modelo**: `small` (~240 MB), carregado automaticamente
+- **Entrada**: OGG (Telegram), MP3, ou NumPy array (microfone)
+
+#### **Microfone (sounddevice + numpy)**
+- **Detector**: VAD automático (silêncio ~1.3s para parar)
+- **Palavra-chave**: "orion" (case-insensitive, detecta no texto transcrito)
+- **Thread**: Daemon background, loop contínuo
+- **Feedback**: Notificação instantânea no Telegram após execução
+
+#### **Windows API (pycaw, comtypes, pyautogui)**
+- Volume: ISimpleAudioVolume
+- Reprodução: SendInput (play/pause/próxima/anterior)
+- Jogos: Steam Scanner (AppID), ShellExecute
+- Sistema: `shutdown.exe` cmd (delay configurável)
+
+### 📊 **Context & State Management**
+
+- **Telegram Update**: Chat ID, User ID, Message content
+- **Session Data** (ConversationHandler): command name, intenção (auto_learn)
+- **Global State** (mic_listener): chat_id, bot, event loop (thread-safe)
+- **Logging**: Arquivo `orion.log` + console (INFO+)
+
+### ⚡ **Fluxo Completo (Exemplo)**
+
+**Usuário fala "Spotify Beatles" ao microfone:**
+
+1. `mic_listener` detecta "orion" no Whisper
+2. `parse_intent("spotify beatles")` → `{"action": "spotify", "query": "beatles"}`
+3. `executar_intent()` → `.startfile("spotify:search:beatles")`
+4. Spotify abre buscando Beatles
+5. Bot manda → 🎵 Tocando no Spotify: *beatles*
+
+**Usuário digita "/toca_som_5" (comando desconhecido):**
+
+1. `auto_learn.handle_unknown_command()` detecta
+2. Bot pergunta: "O que você quer que `/toca_som_5` faça?"
+3. User responde: "aumenta o volume em 5%"
+4. Claude gera handler (validado)
+5. Salvo e registrado em runtime
+6. Menu Telegram atualizado
+7. Comando disponível imediatamente (sem restart)
+
+### 🔐 **Configuração**
 
 ```bash
-# 1. Clone o repositório
-git clone <repo-url>
-cd orion_bot
+# .env (obrigatório)
+TOKEN_TELEGRAM=seu_token_aqui
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-# 2. Instale as dependências
-uv sync
-
-# 3. Configure o token (veja abaixo)
-# 4. Execute
+**Instalação:**
+```bash
+uv sync          # instala deps
 uv run python main.py
 ```
 
-### Configurar o Token
+### 💡 **Pontos-Chave da Arquitetura**
 
-1. Crie um bot no [@BotFather](https://t.me/BotFather) e copie o token.
-2. Abra `main.py` e substitua o valor de `TOKEN` pelo seu token.
+✅ **Modular**: Handlers separados por feature
+✅ **Dinâmico**: IA gera handlers em runtime
+✅ **Assíncrono**: Telegram (asyncio) + mic (threading daemon)
+✅ **Offline**: Transcrição Whisper sem enviar áudio
+✅ **Inteligente**: NLP com regex + Claude para contexto
+✅ **Notificações**: Feedback imediato no Telegram
 
-> Na **primeira execução** o modelo Whisper (`small`, ~240 MB) é baixado automaticamente.
-
----
-
-## Formas de enviar comandos
-
-O Orion aceita comandos de **três formas diferentes**:
-
-| Forma | Como usar |
-|---|---|
-| 🎙️ **Áudio no Telegram** | Grave e envie um áudio no chat do bot |
-| ✍️ **Texto livre no Telegram** | Digite normalmente, sem precisar usar `/` |
-| 🖥️ **Microfone do PC** | Fale direto no microfone — o bot executa e te notifica no Telegram |
-
----
-
-## Comandos por Voz e Texto Livre
-
-Fale ou escreva naturalmente em português. Não é necessário usar nenhuma palavra de ativação.
-
-### 🎵 Música (Spotify)
-
-| Exemplo | Ação |
-|---|---|
-| *"toca menino da porteira"* | Abre Spotify buscando a música |
-| *"coloca raul seixas"* | Busca o artista no Spotify |
-| *"play bohemian rhapsody"* | Busca no Spotify |
-| *"ouvir legião urbana"* | Busca no Spotify |
-
-### ▶️ YouTube
-
-| Exemplo | Ação |
-|---|---|
-| *"youtube lofi hip hop"* | Busca no YouTube |
-| *"assistir vídeo de minecraft"* | Busca no YouTube |
-
-### 🎬 Netflix
-
-| Exemplo | Ação |
-|---|---|
-| *"netflix breaking bad"* | Busca na Netflix |
-| *"filme interestelar"* | Busca na Netflix |
-
-### 🎮 Jogos
-
-| Exemplo | Ação |
-|---|---|
-| *"abre o minecraft"* | Abre o jogo pelo nome (busca aproximada) |
-| *"joga counter strike"* | Abre o jogo |
-| *"lança the witcher"* | Abre o jogo |
-
-### 🔊 Volume
-
-| Exemplo | Ação |
-|---|---|
-| *"aumenta o volume"* | +10% |
-| *"baixa o volume 20"* | −20% |
-| *"muta"* / *"silencia"* | Muta/desmuta |
-
-### ⚙️ Sistema
-
-| Exemplo | Ação |
-|---|---|
-| *"desliga o pc"* | Desliga em 60s |
-| *"desliga em 300"* | Desliga em 5 minutos |
-| *"reinicia"* | Reinicia em 60s |
-| *"cancela"* | Cancela desligamento agendado |
-
----
-
-## Comandos Telegram (barra)
-
-Também funcionam os comandos tradicionais com `/`:
-
-| Comando | Descrição |
-|---|---|
-| `/jogos` | Lista todos os jogos Steam instalados |
-| `/jogo <nome>` | Abre um jogo (aceita nome parcial) |
-| `/youtube <busca>` | Abre o YouTube com busca |
-| `/netflix <busca>` | Abre a Netflix com busca |
-| `/spotify <busca>` | Abre o Spotify com busca |
-| `/vol_up [%]` | Aumenta o volume (padrão 10%) |
-| `/vol_down [%]` | Diminui o volume (padrão 10%) |
-| `/mute` | Muta/desmuta |
-| `/desligar [s]` | Desliga o PC em N segundos (padrão 60) |
-| `/reiniciar [s]` | Reinicia o PC em N segundos (padrão 60) |
-| `/cancelar` | Cancela desligamento agendado |
-| `/ajuda` | Exibe o menu de ajuda |
-
----
-
-## Como a descoberta de jogos funciona
-
-O bot lê os arquivos `.acf` (AppManifest) do Steam para encontrar todos os jogos instalados em todas as bibliotecas — incluindo jogos em outros HDs/SSDs configurados no Steam. Nenhum caminho precisa ser configurado manualmente.
-
----
-
-## Estrutura do projeto
-
-```
-orion_bot/
-├── main.py                  # Ponto de entrada (async, PTB v21)
-├── pyproject.toml           # Dependências (uv/hatchling)
-├── handlers/
-│   ├── start.py             # /start e /ajuda
-│   ├── jogos.py             # /jogos e /jogo
-│   ├── midia.py             # /youtube, /netflix, /spotify
-│   ├── volume.py            # /vol_up, /vol_down, /mute
-│   ├── sistema.py           # /desligar, /reiniciar, /cancelar
-│   └── voice.py             # Handler de áudio e texto livre
-└── utils/
-    ├── steam_scanner.py     # Descoberta automática de jogos Steam
-    ├── transcriber.py       # Transcrição de áudio via Whisper (local)
-    ├── intent_parser.py     # Parser de linguagem natural PT-BR
-    ├── executor.py          # Executa ações (compartilhado por Telegram e mic)
-    └── mic_listener.py      # Listener de microfone em background
-```
-
----
-
-## Dependências principais
-
-| Pacote | Uso |
-|---|---|
-| `python-telegram-bot` | Interface com a API do Telegram |
-| `faster-whisper` | Transcrição de voz local (sem API externa) |
-| `sounddevice` | Captura de microfone no Windows |
-| `pycaw` | Controle de volume via Windows Audio API |
-| `numpy` | Processamento de áudio |
+**Stack resumido**: Python 3.11 → Telegram API → Claude → Whisper → Windows Automation

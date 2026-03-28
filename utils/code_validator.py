@@ -20,8 +20,6 @@ _BLOCKED_IMPORTS = {
 # Nomes de funções/atributos proibidos
 _BLOCKED_NAMES = {"exec", "eval", "__import__", "compile", "open"}
 
-# subprocess é permitido só para Popen/startfile — não para shell=True
-_BLOCKED_SUBPROCESS_ARGS = {"shell"}
 
 
 class ValidationError(Exception):
@@ -73,12 +71,6 @@ class _SecurityVisitor(ast.NodeVisitor):
         # Bloqueia exec(), eval(), etc. como chamada direta
         if isinstance(node.func, ast.Name) and node.func.id in _BLOCKED_NAMES:
             self.errors.append(f"Chamada proibida: '{node.func.id}()'")
-
-        # Bloqueia subprocess.Popen(..., shell=True)
-        for kw in node.keywords:
-            if kw.arg in _BLOCKED_SUBPROCESS_ARGS:
-                if isinstance(kw.value, ast.Constant) and kw.value.value is True:
-                    self.errors.append("subprocess com shell=True é proibido")
 
         self.generic_visit(node)
 

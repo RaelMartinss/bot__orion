@@ -155,3 +155,21 @@ async def jogo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"❌ Erro ao abrir *{match_exato}*: `{e}`", parse_mode="Markdown"
         )
+
+async def handle_jogo_botoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lida com o clique nos botões inline de jogo gerados pelo Claude."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    if data.startswith("abrir_jogo|"):
+        nome_jogo = data.split("|", 1)[1]
+        
+        from utils.executor import _abrir_jogo
+        res = _abrir_jogo(nome_jogo)
+        
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=res,
+            parse_mode="Markdown"
+        )

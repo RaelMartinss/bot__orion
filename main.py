@@ -5,22 +5,26 @@ import os
 from telegram import BotCommand
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, ConversationHandler,
-    MessageHandler, filters,
+    MessageHandler, CallbackQueryHandler, filters,
 )
 
 from handlers.start import start
-from handlers.jogos import jogo, listar_jogos
+from handlers.jogos import jogo, listar_jogos, handle_jogo_botoes
 from handlers.midia import youtube, netflix, spotify
 from handlers.sistema import desligar, reiniciar, cancelar_desligamento
 from handlers.volume import (
     volume_up, volume_down, volume_set, volume_receber, volume_cancelar,
     mute, AGUARDANDO_VOLUME,
 )
-from handlers.auto_learn import build_auto_learn_handler
+from handlers.auto_learn import build_auto_learn_handler, handle_confirmation_callback
 from utils.handler_registry import load_all_custom_handlers, update_telegram_menu
-from handlers.voice import handle_voice, handle_text
+from handlers.voice import handle_text
 from handlers.controle import pausar, proxima, anterior
 import utils.mic_listener as mic_listener
+
+from dotenv import load_dotenv
+
+load_dotenv()  # Carrega variáveis de ambiente do .env
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -32,7 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv('TOKEN_TELEGRAM')
+TOKEN = os.environ.get('TOKEN_TELEGRAM')
 
 
 async def _run():
@@ -66,12 +70,19 @@ async def _run():
     app.add_handler(CommandHandler("reiniciar", reiniciar))
     app.add_handler(CommandHandler("cancelar", cancelar_desligamento))
 
-    # Áudio e texto livre
-    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
+    # Auto-aprendizado — ANTES dos handlers de texto/voz livre.
+    # O ConversationHandler precisa interceptar o texto em AGUARDANDO_INTENCAO
+    # antes que o handle_text captura a mensagem e responda "Não entendi".
+    app.add_handler(build_auto_learn_handler())
+
+    # CallbackQueryHandler separado: captura botões inline learn_yes/learn_no
+    # quando o fluxo foi disparado pelo handle_text (fora do ConversationHandler)
+    app.add_handler(CallbackQueryHandler(handle_confirmation_callback, pattern="^learn_(yes|no)$"))
+    app.add_handler(CallbackQueryHandler(handle_jogo_botoes, pattern="^abrir_jogo\|"))
+
+    # Texto livre (fica DEPOIS do ConversationHandler para nao interceptar estados)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    # Auto-aprendizado — DEPOIS dos fixos
-    app.add_handler(build_auto_learn_handler())
     logger.info("✅ Handlers registrados. Aguardando mensagens...")
 
     # ← FIX 2: removido app.run_polling() que bloqueava tudo abaixo
