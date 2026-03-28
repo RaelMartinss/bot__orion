@@ -8814,3 +8814,30 @@ Traceback (most recent call last):
     raise RuntimeError("This Application is still running!")
 RuntimeError: This Application is still running!
 2026-03-27 23:23:04,622 [INFO] __main__: Bot encerrado pelo usuário.
+2026-03-27 23:23:09,857 [INFO] __main__: ✅ Handlers registrados. Aguardando mensagens...
+2026-03-27 23:23:10,637 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/getMe "HTTP/1.1 200 OK"
+2026-03-27 23:23:10,638 [INFO] telegram.ext.Application: Application started
+2026-03-27 23:23:10,639 [INFO] utils.mic_listener: 🎙️ Mic listener iniciado em background.
+2026-03-27 23:23:10,639 [INFO] __main__: ✅ Orion Bot rodando — voz, texto e microfone ativos.
+2026-03-27 23:23:10,712 [INFO] utils.mic_listener: 🎙️ Aguardando comandos de voz no microfone...
+2026-03-27 23:23:10,895 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/deleteWebhook "HTTP/1.1 200 OK"
+2026-03-27 23:23:20,177 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/getUpdates "HTTP/1.1 200 OK"
+2026-03-27 23:23:21,078 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/sendChatAction "HTTP/1.1 200 OK"
+2026-03-27 23:23:22,267 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:22,660 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/sendMessage "HTTP/1.1 200 OK"
+2026-03-27 23:23:27,246 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/getUpdates "HTTP/1.1 200 OK"
+2026-03-27 23:23:27,619 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/sendChatAction "HTTP/1.1 200 OK"
+2026-03-27 23:23:30,118 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:30,119 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'dir /b /s C:\\projeto-node 2>nul || dir /b /s %USERPROFILE%\\projeto-node 2>nul || dir /b /s %USERPROFILE%\\Desktop\\projeto-node 2>nul || dir /b /s %USERPROFILE%\\Documents\\projeto-node 2>nul'}
+2026-03-27 23:23:46,189 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/getUpdates "HTTP/1.1 200 OK"
+2026-03-27 23:23:48,398 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:48,399 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'cd C:\\Users\\raelmartins\\Desktop\\projeto-node && npm install && npm start'}
+2026-03-27 23:23:52,499 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:52,500 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'cd C:\\Users\\raelmartins\\Desktop\\projeto-node && dir /b && type package.json'}
+2026-03-27 23:23:55,579 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:55,580 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'cd C:\\Users\\raelmartins\\Desktop\\projeto-node && npx ts-node src/index.ts'}
+2026-03-27 23:23:56,937 [INFO] httpx: HTTP Request: POST https://api.telegram.org/bot8671153150:AAE2G5qJVaeen6o6QNrC2T06Q2zIOjAo4P8/getUpdates "HTTP/1.1 200 OK"
+2026-03-27 23:23:59,161 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:23:59,162 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'cd C:\\Users\\raelmartins\\Desktop\\projeto-node && dir src /b && type src\\index.ts && type tsconfig.json'}
+2026-03-27 23:24:01,640 [INFO] httpx: HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-03-27 23:24:01,641 [INFO] utils.orchestrator: Orquestrador acionou tool: executar_terminal args={'comando': 'cd C:\\Users\\raelmartins\\Desktop\\projeto-node && node src/index.js'}
