@@ -132,20 +132,25 @@ async def extrair_intent_estruturado(texto: str) -> dict | None:
     """
     import json
 
+    from utils.datetime_utils import get_current_datetime_string
+    
     headers = {
         "x-api-key": _get_api_key(),
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
+    
+    prompt_com_data = _SYSTEM_INTENT + f"\n\n[DADO_SISTEMA: {get_current_datetime_string()}]"
+    
     payload = {
         "model": MODEL,
         "max_tokens": 150,
-        "system": _SYSTEM_INTENT,
+        "system": prompt_com_data,
         "messages": [{"role": "user", "content": texto}],
         "temperature": 0,
     }
     try:
-        raw = await _call_claude_api(_SYSTEM_INTENT, texto, max_tokens=150, temperature=0.0, timeout=15.0)
+        raw = await _call_claude_api(prompt_com_data, texto, max_tokens=150, temperature=0.0, timeout=15.0)
         start, end = raw.find("{"), raw.rfind("}")
         if start != -1 and end != -1:
             return json.loads(raw[start:end + 1])

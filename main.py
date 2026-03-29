@@ -24,6 +24,7 @@ from handlers.controle import pausar, proxima, anterior
 import utils.mic_listener as mic_listener
 from utils import interface_bridge
 from utils.daily_alerts import start_daily_alerts
+from utils import vision
 
 from dotenv import load_dotenv
 
@@ -130,6 +131,19 @@ async def _run():
         mic_listener.iniciar()
 
         await start_daily_alerts(app.bot, user_ids=[ADMIN_ID])
+
+        # Vision: injeta callback assíncrono para enviar sugestões via Telegram
+        async def _vision_send(texto: str):
+            try:
+                await app.bot.send_message(chat_id=ADMIN_ID, text=texto, parse_mode="Markdown")
+            except Exception as exc:
+                logger.warning(f"Vision send falhou: {exc}")
+
+        def _vision_send_sync(texto: str):
+            asyncio.run_coroutine_threadsafe(_vision_send(texto), loop)
+
+        vision.configure(send_fn=_vision_send_sync)
+        logger.info("✅ Orion Vision configurado (desativado por padrão — diga 'ativa visão').")
 
         logger.info("✅ Orion Bot rodando — voz, texto e microfone ativos.")
         await app.updater.start_polling()

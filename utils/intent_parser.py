@@ -131,6 +131,19 @@ def parse_intent(texto: str) -> dict:
         if m_time:
             return {"action": "set_favorite_team", "query": m_time.group(1), "delay": None}
 
+    # ── Visão ────────────────────────────────────────────────────────────────
+    if _match(t, r'\b(ativa|ativar|liga|ligar|habilita|habilitar|start)\b.{0,20}\bvis[aã]o\b'
+                 r'|\bvis[aã]o\b.{0,20}\b(ativa|liga|habilita|on)\b'):
+        return {"action": "vision_on", "query": None, "delay": None}
+
+    if _match(t, r'\b(desativa|desativar|desliga|desligar|para|parar|para a)\b.{0,20}\bvis[aã]o\b'
+                 r'|\bvis[aã]o\b.{0,20}\b(desativa|desliga|para|off)\b'):
+        return {"action": "vision_off", "query": None, "delay": None}
+
+    if _match(t, r'\b(analisa|analise|captura|vê a tela|ve a tela|o que.{0,15}tela|'
+                 r'descreve a tela|describe the screen)\b'):
+        return {"action": "vision_analyze", "query": None, "delay": None}
+
     # ── Sistema ──────────────────────────────────────────────────────────────
     if _match(t, r'\b(desliga|desligar|shutdown)\b'):
         return {"action": "desligar", "query": None, "delay": _num(t)}
@@ -140,6 +153,10 @@ def parse_intent(texto: str) -> dict:
 
     if _match(t, r'\b(cancela|cancelar|abort)\b'):
         return {"action": "cancelar", "query": None, "delay": None}
+
+    # ── Data e Hora (Offline) ────────────────────────────────────────────────
+    if _match(t, r'\b(que dia|qual a data|que horas?|que dia.{0,5}hoje|que dia.{0,5}amanh[ãa]|calend[áa]rio)\b'):
+        return {"action": "date_time", "query": t, "delay": None}
 
     # ── Spotify — verbos de música têm prioridade (toca/play/ouvir) ──────────
     if (_match(t, _MUSIC_VERBS) or _match(t, _MUSIC_NOUNS)) \

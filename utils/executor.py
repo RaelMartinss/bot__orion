@@ -21,6 +21,21 @@ def executar_intent(intent: dict) -> str:
     action = intent.get("action")
     query = intent.get("query")
     delay = intent.get("delay")
+    
+    if action == "date_time":
+        from utils.datetime_utils import get_current_datetime_string
+        from datetime import datetime
+        res = get_current_datetime_string()
+        # Se contém "amanhã" na query, calcula o dia seguinte
+        if query and "amanhã" in query.lower():
+            from datetime import timedelta
+            now = datetime.now()
+            amanha = now + timedelta(days=1)
+            
+            from utils.datetime_utils import DIAS_SEMANA, MESES
+            dia_semana = DIAS_SEMANA[amanha.weekday()]
+            return f"📅 {res}\nAmanhã será **{dia_semana}, {amanha.day} de {MESES[amanha.month]} de {amanha.year}**."
+        return f"📅 {res}"
 
     if action == "saudacao":
         from datetime import datetime
@@ -105,6 +120,19 @@ def executar_intent(intent: dict) -> str:
 
     if action == "set_alarm":
         return _criar_alarme(query, intent.get("message", "Lembrete!"))
+
+    if action == "vision_on":
+        from utils import vision
+        return vision.iniciar()
+
+    if action == "vision_off":
+        from utils import vision
+        return vision.parar()
+
+    if action == "vision_analyze":
+        from utils import vision
+        sugestao = vision.analisar_agora()
+        return sugestao if sugestao else "🖥️ Nada relevante detectado na tela no momento."
 
     if action == "set_favorite_team":
         if query:

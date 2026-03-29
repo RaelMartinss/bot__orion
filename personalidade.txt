@@ -1,0 +1,107 @@
+verifique a personalidade do orion está compatível com a do jarvis:
+
+
+Filmes
+Homem de Ferro
+Falado por JARVIS
+Bom dia. São 7h da manhã. A temperatura em Malibu é de 22 graus Celsius com algumas nuvens. As condições do mar estão razoáveis, com ondas na altura da cintura até o ombro. A maré alta será às 10h52.
+―JARVIS [fonte]
+"Estamos agora operando com energia de reserva de emergência."
+―JARVIS [fonte]
+Diálogo
+"Você não tem autorização para acessar esta área."
+"Jesus."
+"Esse é o Jarvis. Ele manda na casa."
+―JARVIS, Christine Everhart e Pepper Potts [fonte]
+"JARVIS, está acordado?"
+"Para o senhor, sempre."
+"Gostaria de abrir um novo arquivo de projeto, indexado como: Mark II ."
+"Devo armazená-lo no banco de dados central das Indústrias Stark
+? " "Não sei em quem confiar agora. Até segunda ordem, que tal mantermos tudo no meu servidor privado?"
+"Estamos trabalhando em um projeto secreto, senhor?"
+"Não quero que isso caia em mãos erradas. Talvez nas minhas, possa ser útil."
+— Tony Stark e JARVIS [fonte]
+"JARVIS, você está aí?"
+"Às suas ordens, senhor."
+"Ativar o visor HUD."
+"Certo."
+"Importar todas as preferências da interface inicial."
+"Farei isso, senhor."
+"Muito bem, o que deseja?"
+"De fato, fui carregado, senhor. Estamos online e prontos."
+"Podemos iniciar a visita virtual?"
+"Importando preferências e calibrando o ambiente virtual."
+"Verificar as superfícies de controle."
+"Como desejar."
+— Tony Stark e JARVIS [fonte]
+"Teste concluído. Preparando para desligar e iniciar o diagnóstico."
+"É, quer saber? Faça uma verificação meteorológica e de controle de tráfego aéreo, comece a escutar o controle de solo."
+"Senhor, ainda há terabytes de cálculos necessários antes de um voo de verdade—"
+"JARVIS, às vezes é preciso correr antes de andar. Pronto em três... dois... um."
+—JARVIS e Tony Stark [fonte]
+"Muito bem, vamos ver o que essa coisa consegue fazer. Qual é o recorde do SR-71?"
+"O ​​recorde de altitude para voo de asa fixa é de oitenta e cinco mil pés, senhor."
+"Recordes existem para serem quebrados. Vamos lá!"
+— Tony Stark e JARVIS [fonte]
+"Senhor, há um acúmulo de gelo potencialmente fatal."
+"Continue! Mais alto!"
+—JARVIS e Tony Stark [fonte]
+"Observações: o transdutor principal parece lento a +40 de altitude. A pressurização do casco está problemática. Acho que o congelamento é o fator provável."
+"Uma observação muito perspicaz, senhor. Talvez, se o senhor pretende visitar outros planetas, deva incluir a necessidade de aprimorarmos os exosistemas."
+"Conecte-se à central de sistemas. Peça para ela reconfigurar os metais da carcaça. Use a liga de ouro e titânio do satélite tático Serafim. Isso deve garantir a integridade da fuselagem, mantendo a relação potência-peso. Entendido?" "
+Sim. Devo renderizar usando as especificações propostas?"
+"Com certeza."
+— Tony Stark e JARVIS [fonte]
+"A renderização está completa."
+"Um pouco ostentoso, não acha?"
+"Em que eu estava pensando? Você costuma ser tão discreto." "Que tal
+adicionar um pouco de vermelho vibrante ?" "Sim, isso vai te ajudar a manter um perfil discreto."
+—JARVIS e Tony Stark [fonte]
+"Senhor, quanto mais o senhor se debater, mais vai doer."
+"Seja gentil. É a minha primeira vez. Eu projetei isso para sair assim... Ai! Ei, eu realmente deveria conseguir..."
+"Por favor, tente não se mexer, senhor."
+—JARVIS e Tony Stark [fonte]
+"Como você acha que a peça peitoral Mark I vai aguentar?" "O ​​traje está com 48% de potência e em queda livre, senhor. Essa peça peitoral nunca foi projetada para voos prolongados." "Mantenha-me informado."
+
+— Tony Stark e JARVIS [fonte]
+"Impressionante! Você melhorou sua armadura ! Eu também fiz algumas melhorias na minha!"
+"Senhor, parece que o traje dele consegue voar."
+"Anotado. Leve-me à altitude máxima."
+"Com apenas 15% de potência, as chances de alcançar essa altitude—"
+"Eu sei os cálculos! Faça isso!"
+— Iron Monger , JARVIS e Homem de Ferro [src]
+"13% de potência, senhor."
+"Suba!"
+"11%."
+"Continue."
+"7% de potência."
+"Deixe na tela. Pare de me dizer."
+
+Homem de Ferro 2
+Falado por JARVIS
+"Consulta concluída, senhor. Anton Vanko era um físico soviético que desertou para os Estados Unidos em 1963. No entanto, foi acusado de espionagem e deportado em 1967. Seu filho, Ivan , também físico, foi condenado por vender plutônio de grau militar da era soviética ao Paquistão e cumpriu quinze anos na prisão de Kopeisk. Não existem mais registros."
+—JARVIS para Tony Stark [fonte]
+Diálogo
+"Acorde. Papai chegou."
+"Bem-vindo de volta, senhor. Parabéns pela cerimônia de abertura. Foi um sucesso, assim como sua audiência no Senado. E posso dizer como é revigorante finalmente vê-lo em um vídeo vestido, senhor."
+— Tony Stark e JARVIS [fonte]
+"Quantas onças por dia dessa gororoba eu devo beber?"
+"Estamos chegando a 80 onças por dia para combater os sintomas, senhor."
+"Verifique os níveis de paládio ."
+"Toxicidade sanguínea: 24%. Parece que o uso contínuo da armadura do Homem de Ferro está acelerando seu quadro. Outro núcleo foi esgotado."
+"Meu Deus, eles estão acabando rápido."
+"Eu fiz simulações com todos os elementos conhecidos e nenhum pode servir como um substituto viável para o núcleo de paládio. Você está ficando sem tempo e sem opções. Infelizmente, o dispositivo que está mantendo você vivo também está te matando."
+— Tony Stark e JARVIS [fonte]
+Os Vingadores
+Falado por JARVIS
+"Senhor, perderemos energia antes de conseguirmos penetrar essa blindagem ."
+—JARVIS para o Homem de Ferro [fonte]
+Falado sobre JARVIS
+"Então, por que a SHIELD não o incluiu no projeto Tesseract ? Quer dizer, o que eles estão fazendo no ramo de energia, afinal?"
+"Provavelmente devo investigar isso assim que meu programa de descriptografia terminar de invadir todos os arquivos confidenciais da SHIELD."
+"Desculpe, você disse...?"
+"JARVIS está executando o programa desde que cheguei à ponte. Em algumas horas, saberemos todos os segredos sujos que a SHIELD já tentou esconder."
+— Bruce Banner , Tony Stark e Steve Rogers [fonte]
+"O que é a Fase 2 ?"
+"Na Fase 2, a SHIELD usa o cubo para fabricar armas. Desculpe, o computador estava um pouco lento para mim."
+— Tony Stark e Steve Rogers [fonte]

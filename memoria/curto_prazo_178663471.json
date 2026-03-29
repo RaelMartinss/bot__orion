@@ -1,55 +1,5 @@
 [
   {
-    "role": "assistant",
-    "content": [
-      {
-        "type": "tool_use",
-        "id": "toolu_01CAeK7sCkCDZtgqjuy5VtPf",
-        "name": "ler_url",
-        "input": {
-          "url": "https://www.wheresthematch.com/br/futebol-ao-vivo-na-programacao-da-TV-jogos-de-hoje/"
-        },
-        "caller": {
-          "type": "direct"
-        }
-      }
-    ]
-  },
-  {
-    "role": "user",
-    "content": [
-      {
-        "type": "tool_result",
-        "tool_use_id": "toolu_01CAeK7sCkCDZtgqjuy5VtPf",
-        "content": "Título: Futebol ao Vivo na TV Hoje – Onde Assistir Jogo ao Vivo\nURL: https://www.wheresthematch.com/br/futebol-ao-vivo-na-programacao-da-TV-jogos-de-hoje/\nConteúdo:\nFutebol ao Vivo na TV Hoje – Onde Assistir Jogo ao Vivo Futebol na TV em Brasil Reino Unido Alemanha Itália Países Baixos Estados Unidos Indonésia Conecte-se ou Registro MENU × Minha conta Inscreva-se agora Desbloqueie todos os esportes para £ 4,49 Alterar o fuso horário Todos os esportes Todos os esportes Futebol Rugby U Rugby L Críquete Mais esportes Tênis Fórmula 1 Golfe MotoGP Boxe Snooker Ciclismo Dardos Automobilismo Futebol Americano Basquetebol Beisebol Hockey no gelo Bilhar Atletismo Badminton Speedway Bolas Corrida de cavalo Eu Nado Esborrachar WWE UFC Esportes de inverno Ginástica Tênis de mesa Netball Regras australianas GAA Bladeren op team iOS Android Mapa do site Futebol na tv Futebol ao Vivo na TV Hoje O futebol é paixão nacional no Brasil – e isso se reflete nas transmissões diárias na TV e nos serviços de streaming. Milhões de torcedores acompanham partidas ao vivo, principalmente jogos do Brasileirão , das Copas nacionais e das grandes competições internacionais, como a Libertadores, Champions League e Premier League. Com tantos campeonatos e diferentes plataformas, pode ficar difícil saber onde cada jogo vai passar. Por isso, o WheresTheMatch mostra todos os jogos de futebol de hoje na TV ou streaming num só lugar – com informações completas e atualizadas de todos os canais e serviços que operam no Brasil. Abaixo você confere onde assistir futebol ao vivo hoje com horários, canais e streaming online atualizados diariamente pelo WheresTheMatch.com. Direitos de Transmissão no Brasil – Vigência dos contratos (2025 em diante) Os direitos de transmissão no futebol brasileiro são negociados por ciclos de 3 a 6 anos, dependendo da competição. Veja abaixo quem transmite o quê — e até quando esses contratos estão vigentes. 1. Globo / SporTV / Premiere Brasileirão Série A e Série B: direitos válidos até 2024 (novo ciclo 2025–2029 em negociação) Copa do Brasil: contrato renovado até 2026 Libertadores e Sul-Americana: finais em TV aberta até 2026, sublicenciamento via Conmebol 2. ESPN / Star+ (Disney) Premier League (Inglaterra): renovado até 2028/29 LaLiga (Espanha): direitos exclusivos até 2028/29 Serie A (Itália): até 2027/28 Ligue 1 (França): até 2025/26 Copa do Rei / Copa da Inglaterra: renovados até 2025/26 3. Paramount+ UEFA Champions League: direitos exclusivos no streaming até o final da temporada 2026/27 Parcerias com SBT para jogos em TV aberta valem pelo mesmo período (2024/25 a 2026/27) 4. SBT Champions League (alguns jogos em TV abert ..."
-      }
-    ]
-  },
-  {
-    "role": "user",
-    "content": "o que tem de bom hoje, pra assiste no futebol"
-  },
-  {
-    "role": "assistant",
-    "content": "Boa pergunta, Rael! 🎉 Aqui está o que consegui apurar sobre os jogos de hoje:\n\n---\n\n⚽ **JOGOS DE FUTEBOL DE HOJE**\n\nCom base nas fontes consultadas, os principais jogos de hoje você pode acompanhar nas seguintes plataformas:\n\n📺 **Onde assistir:**\n- **Globo / SporTV / Premiere** → Brasileirão Série A e B, Copa do Brasil\n- **ESPN / Star+** → Premier League, La Liga, Serie A italiana\n- **Paramount+ / SBT** → Champions League\n- **Amazon Prime** → Alguns jogos da Champions e da Copa do Brasil\n\n---\n\n🔎 **Para ver a agenda completa e os horários exatos de hoje**, recomendo acessar:\n\n- 📌 **GE Globo** → [ge.globo.com/agenda](https://ge.globo.com/agenda/) — Lista todos os jogos do dia com horários\n- 📌 **WheresTheMatch** → [wheresthematch.com/br](https://www.wheresthematch.com/br/futebol-ao-vivo-na-programacao-da-TV-jogos-de-hoje/) — Mostra canal por canal onde cada jogo passa\n\n---\n\nQuer que eu busque os jogos de algum campeonato específico, Rael? Tipo **Brasileirão**, **Champions League** ou o jogo do seu time? 😄⚽"
-  },
-  {
-    "role": "user",
-    "content": "boa tarde"
-  },
-  {
-    "role": "assistant",
-    "content": "Boa tarde, Rael! 😄 Pode falar, o que você precisa?"
-  },
-  {
-    "role": "user",
-    "content": "o que tem de bom hoje, pra assiste no futebol"
-  },
-  {
-    "role": "assistant",
-    "content": "Aqui está a agenda de hoje, Rael! ⚽🔥\n\n---\n\n🗓️ **JOGOS DE HOJE — 17/07/2025**\n\n---\n\n🌎 **CONMEBOL Sul-Americana**\n- 🕖 **19h00** — Universidad de Chile x Guaraní (PAR) → *Paramount+*\n- 🕤 **21h30** — Atlético Bucaramanga x **Atlético/MG** → *ESPN e Disney+*\n\n---\n\n🇧🇷 **Brasileirão Série A**\n- 🕖 **19h30** — **Fluminense x Cruzeiro** → *Record, Premiere, CazéTV (YouTube), Prime Video e Disney+*\n\n---\n\n🇧🇷 **Brasileirão Série B**\n- 🕖 **19h30** — Operário/PR x CRB → *Disney+ e SportyNet*\n- 🕤 **21h35** — Remo x Novorizontino → *ESPN 4, Disney+, Desimpedidos (YouTube)*\n\n---\n\n🌟 **Destaque do dia:** O jogo mais interessante é **Fluminense x Cruzeiro** no Brasileirão, passando na **Record aberta** e também na **CazéTV no YouTube** — ou seja, de graça! 😄\n\nE tem também o **Atlético/MG na Sul-Americana** pra quem curte o Galo! 🐓\n\nQuer mais detalhes de algum jogo? 😊"
-  },
-  {
     "role": "user",
     "content": "eu torço para o flamengo"
   },
@@ -96,5 +46,37 @@
   {
     "role": "assistant",
     "content": "Rael, o terminal está com instabilidade hoje, mas o plugin foi criado com sucesso! ✅\n\nVeja como rodar o alarme:\n\n---\n\n### ⏰ Alarme de Água — Como ativar\n\n1. Primeiro instale a dependência (só uma vez):\n```bash\npip install plyer\n```\n\n2. Depois rode o plugin:\n```bash\npython plugins/alarme_agua.py\n```\n\n3. Deixe o terminal **aberto em background** — ele vai monitorar o horário e às **16h55** vai disparar uma **notificação do Windows** assim:\n\n> 💧 **Hora de Tomar Água!**\n> *Rael, não esquece de se hidratar! Beba um copo d'água agora! 😄*\n\n---\n\n### 💡 Dica extra:\nSe quiser que rode **automaticamente quando ligar o PC**, posso criar uma entrada no **Agendador de Tarefas do Windows** para isso! Quer? 😄"
+  },
+  {
+    "role": "user",
+    "content": "?"
+  },
+  {
+    "role": "assistant",
+    "content": "Arquivo criado! ✅ O terminal está instável hoje, mas o plugin está pronto. Rode assim:\n\n```bash\npip install plyer\npython plugins/alarme_agua.py\n```\n\nDeixe o terminal aberto e às **16h55** você vai receber uma notificação no Windows:\n\n> 💧 **Hora de Tomar Água!**\n> *\"Rael, não esquece de se hidratar! Beba um copo d'água agora!\"*\n\nQuer que eu configure para rodar automaticamente no Windows? 😄"
+  },
+  {
+    "role": "user",
+    "content": "Humm"
+  },
+  {
+    "role": "assistant",
+    "content": "Tudo certo, Rael! 😄 O plugin foi criado com sucesso! O terminal tá com instabilidade hoje, mas o arquivo está pronto. Para ativar o alarme, basta rodar **uma linha** no terminal:\n\n```bash\npython plugins/alarme_agua.py\n```\n\n✅ Deixa ele rodando em background e às **16h55** vai aparecer uma caixinha assim na tela:\n\n> 💧 **Hora de Tomar Água!**\n> *\"Rael, não esquece de se hidratar! Beba um copo d'água agora!\"*\n\nSimples assim! Quer que eu agende para rodar **automaticamente toda vez que ligar o PC**? 😄"
+  },
+  {
+    "role": "user",
+    "content": "Amanhã é?"
+  },
+  {
+    "role": "assistant",
+    "content": "Amanhã é **terça-feira, 30 de março de 2026**, Rael! 📅\n\nPrecisa de algo para amanhã? 😄"
+  },
+  {
+    "role": "user",
+    "content": "Boa noite"
+  },
+  {
+    "role": "assistant",
+    "content": "Boa noite, Rael! 🌙😄\n\nDescansa bem! E não esquece de tomar água antes de dormir! 💧😂🔴⚫"
   }
 ]

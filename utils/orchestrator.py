@@ -21,6 +21,7 @@ from html import unescape
 from html.parser import HTMLParser
 from collections import defaultdict
 from utils.claude_client import _get_api_key, ANTHROPIC_API_URL, MODEL
+from utils.datetime_utils import get_current_datetime_string
 from utils.executor import (
     _abrir_jogo, _volume_set, _volume, _mute,
     _primeiro_video_youtube
@@ -49,6 +50,7 @@ PROTOCOLO DE RESILIÊNCIA (CRÍTICO):
 6. FONTES: Ao responder com dados da web, cite a fonte no texto final de forma curta e inclua a URL quando fizer sentido.
 7. DADOS ATUAIS DE ESPORTE: Jogos de hoje, próximo jogo, placar, tabela e resultados → use `buscar_web` diretamente, não plugin local.
 8. EFICIÊNCIA: Você tem turnos limitados. Não desperdice turnos listando arquivos quando já sabe o que fazer.
+9. DATA/HORA: Use a data/hora injetada no prompt abaixo para responder sobre 'hoje', 'amanhã', etc.
 
 ESTRUTURA: Use a pasta `plugins/` para todas as extensões. Nunca cite 'modulos/'.
 """
@@ -753,7 +755,11 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
             f"Se a mensagem atual indica uma plataforma diferente (YouTube, Spotify, Netflix), "
             f"reuse esta query na nova plataforma sem pedir confirmação.]"
         )
-    prompt_personalizado = SYSTEM_ORCHESTRATOR + contexto_memoria + contexto_sessao + contexto_pending + "\n\n[PRIORIDADE: Se uma tarefa demorar mais de 2 segundos, use 'enviar_mensagem_imediata' para avisar o usuário que você está trabalhando antes de continuar.]"
+    
+    # Injeta Data/Hora Atual
+    contexto_atual = f"\n\n[CONTEXTO TEMPORAL: {get_current_datetime_string()}]"
+    
+    prompt_personalizado = SYSTEM_ORCHESTRATOR + contexto_memoria + contexto_sessao + contexto_pending + contexto_atual + "\n\n[PRIORIDADE: Se uma tarefa demorar mais de 2 segundos, use 'enviar_mensagem_imediata' para avisar o usuário que você está trabalhando antes de continuar.]"
 
     headers = {
         "x-api-key": _get_api_key(),
@@ -780,10 +786,9 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
 
                 response = await _post_with_backoff(client, headers, payload, user_id)
                 if response is None:
-                    return {
-                        "response": "⚠️ A Anthropic está ocupada no momento. Tente novamente em alguns instantes.",
-                        "new_history": chat_history
-                    }
+                    return await _run_openai_fallback(
+                        user_id, user_text, messages, prompt_personalizado, chat_history, notifier_callback
+                    )
 
                 if response.status_code != 200:
                     logger.error(
@@ -792,7 +797,9 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
                         response.status_code,
                         response.text[:300],
                     )
-                    return {"response": "⚠️ Erro de rede Anthropic.", "new_history": chat_history}
+                    return await _run_openai_fallback(
+                        user_id, user_text, messages, prompt_personalizado, chat_history, notifier_callback
+                    )
 
                 data = response.json()
                 assistant_message = {"role": "assistant", "content": data.get("content", [])}
@@ -850,13 +857,85 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
                 _MAX_TURNS,
                 user_id,
             )
+            # Se sairmos do loop de turnos sem uma resposta conclusiva:
             return {
-                "response": "Concluí o que foi possível nesta rodada. Se quiser, pode repetir ou refinar o pedido.",
+                "response": "Concluí as tarefas automáticas. Como posso ajudar com mais algo?",
                 "wants_to_learn": wants_to_learn,
                 "games_listed": games_listed,
                 "new_history": messages[-20:]
             }
-            
+
     except Exception as e:
         logger.error(f"Erro no run_orchestrator: {e}", exc_info=True)
+        # Tenta fallback se der erro catastrófico na Anthropic
+        if "anthropic" in str(e).lower() or "httpx" in str(e).lower():
+            return await _run_openai_fallback(user_id, user_text, messages, prompt_personalizado, chat_history, notifier_callback)
         return {"response": f"Erro interno (Orchestrator): {e}", "wants_to_learn": False, "games_listed": [], "new_history": chat_history}
+
+
+async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat_history, notifier_callback) -> dict:
+    """Fallback para OpenAI (GPT-4o-mini) se a Anthropic falhar."""
+    logger.info(f"Iniciando Fallback OpenAI para user_id={user_id}")
+    if notifier_callback:
+        await notifier_callback("⚠️ Conexão instável com meu núcleo Anthropic. Ativando consciência secundária (OpenAI)...")
+    
+    from utils.openai_client import get_client
+    try:
+        client = get_client()
+        
+        # Filtra mensagens para o formato OpenAI (garante que content seja string)
+        openai_messages = []
+        for m in messages:
+            role = m["role"]
+            content = _normalizar_content_para_texto(m["content"])
+            if content:
+                openai_messages.append({"role": role, "content": content})
+
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt + "\n\n[AVISO: Você é um backup. Avise sutilmente que está operando em modo de contingência se o usuário perguntar por que você mudou.]"},
+                *openai_messages
+            ],
+            temperature=0.7,
+            max_tokens=512
+        )
+        
+        texto = response.choices[0].message.content
+        chat_history.append({"role": "user", "content": user_text})
+        chat_history.append({"role": "assistant", "content": texto})
+        
+        return {
+            "response": texto,
+            "new_history": chat_history[-20:]
+        }
+    except Exception as e:
+        logger.error(f"Erro no fallback OpenAI: {e}")
+        return await _run_local_fallback(user_text, chat_history)
+
+
+async def _run_local_fallback(user_text, chat_history, notifier_callback=None) -> dict:
+    """Última linha de defesa: Resposta offline/local (Ollama ou Hardcoded)."""
+    logger.info("Iniciando Fallback Local (Offline)")
+    if notifier_callback:
+        await notifier_callback("🚨 Todas as APIs falharam. Entrando em Modo Offline de Segurança.")
+    
+    # Tenta Ollama via HTTP local
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post("http://localhost:11434/api/generate", json={
+                "model": "mistral",
+                "prompt": f"O usuário disse: {user_text}\nResponda de forma curta como Orion (Modo Offline).",
+                "stream": False
+            })
+            if resp.status_code == 200:
+                texto = resp.json().get("response")
+                return {"response": f"🤖 (Modo Local) {texto}", "new_history": chat_history}
+    except Exception:
+        pass
+
+    # Fallback final: Hardcoded
+    return {
+        "response": "🔌 Desculpe, estou sem conexão e meu cérebro local (Ollama) não respondeu. Posso executar apenas comandos básicos do PC agora.",
+        "new_history": chat_history
+    }
