@@ -12,6 +12,7 @@ Suporta wake word "Orion":
 """
 
 import logging
+import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -20,10 +21,24 @@ from utils.executor import executar_intent
 from ml.intent_model import interpretar_comando
 import utils.mic_listener as mic_listener
 from utils import interface_bridge
-from utils.memoria import carregar_historico, persistir_historico, carregar_memoria_longa
+from utils.memoria import carregar_historico, persistir_historico, carregar_memoria_longa, salvar_pending, limpar_pending, carregar_pending, salvar_ultimo_objeto
+from utils.context_resolver import resolver_contexto
 from utils.tts_manager import gerar_audio, limpar_audio
 
 logger = logging.getLogger(__name__)
+
+
+async def _responder(update: Update, texto: str, voice_active: bool) -> None:
+    """Envia resposta por voz (se ativo) ou texto. Único ponto de saída de mensagem."""
+    if voice_active:
+        audio_path = await gerar_audio(texto)
+        if audio_path:
+            try:
+                await update.message.reply_voice(voice=open(audio_path, "rb"), caption=texto)
+            finally:
+                limpar_audio(audio_path)
+            return
+    await update.message.reply_text(texto, parse_mode="Markdown")
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -52,32 +67,45 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     texto_para_ia = comando if tem_wake_word else texto_original
+    user_id = update.effective_user.id
     await interface_bridge.emit_state("pensando", f"Processando: {texto_para_ia[:120]}")
 
-    intent = parse_intent(texto_para_ia)
-    if intent.get("action") == "desconhecido":
-        ml_intent = interpretar_comando(texto_para_ia)
-        if ml_intent:
-            intent = ml_intent
+    # Verifica se é uma resposta contextual ("no youtube", "no spotify") antes de parsear normalmente
+    intent = resolver_contexto(user_id, texto_para_ia)
+
+    if intent is None:
+        intent = parse_intent(texto_para_ia)
+
+        # Guard aplicado antes do ML e do Claude: evita rodar modelos em texto claramente conversacional
+        _parece_comando = len(texto_para_ia) >= 6 and not re.match(
+            r'^(ok|sim|não|nao|tudo bem|oi|olá|ola|ei|e aí|eai|valeu|obrigad|certo|entendi|legal|show|'
+            r'bom dia|boa tarde|boa noite|boa|bom|tudo|como vai|obrigado|obrigada)\b',
+            texto_para_ia.lower()
+        )
+        if intent.get("action") == "desconhecido" and _parece_comando:
+            ml_intent = interpretar_comando(texto_para_ia)
+            if ml_intent:
+                intent = ml_intent
+
+        # Regex + ML falharam → Claude extrai intent estruturado (rápido, sem orchestrator)
+        if intent.get("action") == "desconhecido" and _parece_comando:
+            from utils.claude_client import extrair_intent_estruturado
+            structured = await extrair_intent_estruturado(texto_para_ia)
+            if structured and structured.get("action") not in ("desconhecido", "conversa", None):
+                intent = structured
 
     if intent.get("action") != "desconhecido":
         resultado = executar_intent(intent)
+        # Salva contexto pendente para permitir redirect posterior ("tocou no spotify → no youtube")
+        if intent.get("action") in ("spotify", "youtube", "netflix") and intent.get("query"):
+            salvar_pending(user_id, intent["action"], intent["query"])
+        # Salva último objeto aberto para resolver referências pronominais ("rode ele")
+        if intent.get("action") == "open_project" and intent.get("target"):
+            salvar_ultimo_objeto(user_id, "open_project", intent["target"], intent.get("app"))
         mem = carregar_memoria_longa(user_id=update.effective_user.id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
         await interface_bridge.emit_state("falando", resultado[:160])
-
-        if voice_active:
-            audio_path = await gerar_audio(resultado)
-            if audio_path:
-                try:
-                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=resultado)
-                finally:
-                    limpar_audio(audio_path)
-            else:
-                await update.message.reply_text(resultado)
-        else:
-            await update.message.reply_text(resultado, parse_mode="Markdown")
-
+        await _responder(update, resultado, voice_active)
         await interface_bridge.emit_state("idle", "Sistema em espera.")
         from telegram.ext import ConversationHandler
         return ConversationHandler.END
@@ -88,19 +116,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mem = carregar_memoria_longa(user_id=update.effective_user.id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
         await interface_bridge.emit_state("falando", local_result[:160])
-
-        if voice_active:
-            audio_path = await gerar_audio(local_result)
-            if audio_path:
-                try:
-                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=local_result)
-                finally:
-                    limpar_audio(audio_path)
-            else:
-                await update.message.reply_text(local_result)
-        else:
-            await update.message.reply_text(local_result)
-
+        await _responder(update, local_result, voice_active)
         await interface_bridge.emit_state("idle", "Sistema em espera.")
         from telegram.ext import ConversationHandler
         return ConversationHandler.END
@@ -108,8 +124,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     from utils.orchestrator import run_orchestrator
-    
-    user_id = update.effective_user.id
+
     # Resgata memória amnésica para passar como contexto — agora via JSON persistente
     historico = carregar_historico(user_id)
     
@@ -124,11 +139,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Executa a orquestração passando o callback de notificação imediata
     result = await run_orchestrator(
-        texto_para_ia, 
-        chat_history=historico, 
-        user_id=user_id, 
+        texto_para_ia,
+        chat_history=historico,
+        user_id=user_id,
         is_mic=False,
-        notifier_callback=notificar_imediato_telegram
+        notifier_callback=notificar_imediato_telegram,
+        pending_context=carregar_pending(user_id),
     )
     
     # Salva o resultado do novo histórico para não sofrer amnésia (JSON)
@@ -144,20 +160,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mem = carregar_memoria_longa(user_id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
         await interface_bridge.emit_state("falando", result["response"][:160])
-        
-        if voice_active:
-            # Envia áudio
-            audio_path = await gerar_audio(result["response"])
-            if audio_path:
-                try:
-                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=result["response"])
-                finally:
-                    limpar_audio(audio_path)
-            else:
-                # Fallback para texto se falhar o TTS
-                await update.message.reply_text(result["response"])
-        else:
-            await update.message.reply_text(result["response"], parse_mode="Markdown")
+        await _responder(update, result["response"], voice_active)
         
     # Se a IA avaliou que precisa que você ensine o comando e engatilhou a feramenta de criar:
     if result.get("wants_to_learn"):

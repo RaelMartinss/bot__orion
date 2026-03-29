@@ -6,6 +6,33 @@ logger = logging.getLogger(__name__)
 
 MEM_DIR = "memoria"
 
+# ── Contexto pendente (in-memory, por sessão) ─────────────────────────────────
+_pending_context: dict[int, dict] = {}
+_last_object: dict[int, dict] = {}
+
+
+def salvar_pending(user_id: int, action: str, query: str | None):
+    """Salva a última ação de mídia executada para permitir redirect contextual."""
+    if query:
+        _pending_context[user_id] = {"action": action, "query": query}
+
+
+def carregar_pending(user_id: int) -> dict | None:
+    return _pending_context.get(user_id)
+
+
+def limpar_pending(user_id: int):
+    _pending_context.pop(user_id, None)
+
+
+def salvar_ultimo_objeto(user_id: int, action: str, target: str, app: str | None = None):
+    """Salva o último projeto/app aberto para resolver referências pronominais."""
+    _last_object[user_id] = {"action": action, "target": target, "app": app}
+
+
+def carregar_ultimo_objeto(user_id: int) -> dict | None:
+    return _last_object.get(user_id)
+
 def _get_path(user_id, tipo):
     """tipo: 'curto' ou 'longo'"""
     if not os.path.exists(MEM_DIR):

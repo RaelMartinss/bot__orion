@@ -7,10 +7,41 @@ import re
 import logging
 from datetime import datetime
 
+from utils.apps_config import APP_KEYWORDS as _APP_KEYWORDS
+
 logger = logging.getLogger(__name__)
 
 # Variações de nome aceitas (Whisper pode transcrever diferente)
 _ORION_PATTERN = r'^(orion|[óo]rion|oryon|orin|oron|ori[aã]o|orião)[,.]?\s*'
+
+# Intenções semânticas sem app explícito na frase
+_APP_SEMANTICOS: dict[str, str] = {
+    r'\b(programar|codar|codificar|desenvolvimento|desenvolver)\b': 'vscode',
+}
+
+_OPEN_VERBS = r'\b(abra|abre|abrir|iniciar|inicia|open)\b'
+
+_MUSIC_VERBS = r'\b(toca|tocar|play|ouvir|coloca|colocar|reproduz|reproduzir|bota|botar|põe|escuta|escutar)\b'
+_MUSIC_NOUNS = r'\b(música|musica|song|faixa|banda|artista|álbum|album|spotify)\b'
+
+_SPOTIFY_TRIGGERS = [
+    'quero ouvir', 'queria ouvir', 'gostaria de ouvir',
+    'quero escutar', 'queria escutar',
+    'toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
+    'reproduz', 'reproduzir', 'bota', 'botar', 'põe',
+    'escuta', 'escutar', 'spotify', 'música', 'musica',
+    'song', 'faixa', 'a música', 'a musica', 'no spotify',
+    'quero', 'queria', 'me', 'pra mim', 'para mim',
+]
+
+_YOUTUBE_TRIGGERS = [
+    'youtube', 'no youtube', 'assistir', 'assiste', 'ver',
+    'video', 'vídeo', 'clipe', 'busca', 'buscar',
+    'toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
+    'escuta', 'escutar', 'reproduz', 'reproduzir',
+    'quero ouvir', 'queria ouvir', 'quero ver', 'queria ver',
+    'quero', 'queria',
+]
 
 
 def extract_orion_command(texto: str) -> tuple[bool, str]:
@@ -91,25 +122,14 @@ def parse_intent(texto: str) -> dict:
         return {"action": "cancelar", "query": None, "delay": None}
 
     # ── Spotify — verbos de música têm prioridade (toca/play/ouvir) ──────────
-    # Só cai aqui se NÃO tiver "youtube" ou "netflix" explícito no texto
-    _MUSIC_VERBS = r'\b(toca|tocar|play|ouvir|coloca|colocar|reproduz|reproduzir|bota|botar|põe|escuta|escutar)\b'
-    _MUSIC_NOUNS = r'\b(música|musica|song|faixa|banda|artista|álbum|album|spotify)\b'
     if (_match(t, _MUSIC_VERBS) or _match(t, _MUSIC_NOUNS)) \
             and not _match(t, r'\byoutube\b') and not _match(t, r'\bnetflix\b'):
-        _SPOTIFY_TRIGGERS = ['toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
-                             'reproduz', 'reproduzir', 'bota', 'botar', 'põe',
-                             'escuta', 'escutar', 'spotify', 'música', 'musica',
-                             'song', 'faixa', 'a música', 'a musica', 'no spotify',
-                             'me', 'pra mim', 'para mim']
         query = _query(t, _SPOTIFY_TRIGGERS)
         return {"action": "spotify", "query": query, "delay": None}
 
     # ── YouTube ───────────────────────────────────────────────────────────────
     if _match(t, r'\byoutube\b') or _match(t, r'\b(assistir|assiste|ver)\b.{0,20}\b(video|vídeo|clipe)\b'):
-        query = _query(t, ['youtube', 'no youtube', 'assistir', 'assiste', 'ver',
-                           'video', 'vídeo', 'clipe', 'busca', 'buscar',
-                           'toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
-                           'escuta', 'escutar', 'reproduz', 'reproduzir'])
+        query = _query(t, _YOUTUBE_TRIGGERS)
         return {"action": "youtube", "query": query, "delay": None}
 
     # ── Netflix ───────────────────────────────────────────────────────────────
@@ -118,11 +138,107 @@ def parse_intent(texto: str) -> dict:
                            'na netflix', 'assistir', 'assiste'])
         return {"action": "netflix", "query": query, "delay": None}
 
+    # ── Rodar projeto / comandos de dev server ───────────────────────────────
+    # "npm run dev" / "rode o projeto" / "inicia o servidor" / "npm start"
+    _RUN_CMD_RE = (
+        r'\bnpm\s+run\s+\w+'          # npm run dev / npm run start
+        r'|\bnpm\s+start\b'           # npm start
+        r'|\buv\s+run\b'              # uv run python main.py
+        r'|\bpython\s+\w'             # python main.py
+        r'|\bcargo\s+run\b'           # cargo run
+        r'|\bgo\s+run\b'              # go run .
+        r'|\b(rode|rodar|roda)\b.{0,30}\b(projeto|servidor|app|server)\b'
+        r'|\b(projeto|servidor|app|server)\b.{0,30}\b(rodar|rode|roda)\b'
+    )
+    if _match(t, _RUN_CMD_RE):
+        # "rode o projeto travel" → extrai "travel"
+        m_p = re.search(r'\bprojeto\s+([\w][\w-]+)', t)
+        project_name = m_p.group(1) if m_p else None
+        return {"action": "run_project", "query": project_name, "delay": None}
+
+    # ── Criar projeto ────────────────────────────────────────────────────────
+    # "cria um projeto react chamado travel na área de trabalho"
+    if _match(t, r'\b(criar|cria|create|inicializar|scaffold|montar|novo\s+projeto|new\s+project)\b') and \
+       _match(t, r'\b(projeto|app|aplicação|aplicacao|site|sistema|api)\b'):
+
+        # Nome: "chamado X" / "vai se chamar X" / "chama X" / "nome X"
+        m_name = re.search(
+            r'\b(?:chamado|chamar?|se\s+chama?|nome|named?|called?)\s+([\w][\w-]*)', t
+        )
+        project_name = m_name.group(1) if m_name else None
+
+        # Framework
+        _FRAMEWORKS = [
+            'react', 'vue', 'angular', 'next', 'nextjs', 'svelte', 'nuxt',
+            'express', 'fastapi', 'django', 'flask', 'laravel', 'vite',
+        ]
+        framework = next((f for f in _FRAMEWORKS if _match(t, rf'\b{f}\b')), None)
+
+        # Localização: "área de trabalho" → desktop, "documentos" → documents
+        if _match(t, r'\b(area\s+de\s+trabalho|área\s+de\s+trabalho|desktop)\b'):
+            location = 'desktop'
+        elif _match(t, r'\b(documentos|documents)\b'):
+            location = 'documents'
+        else:
+            location = 'desktop'  # padrão
+
+        return {
+            "action": "create_project",
+            "query": project_name,
+            "framework": framework,
+            "location": location,
+            "delay": None,
+        }
+
+    # ── Abrir projeto em IDE específica ──────────────────────────────────────
+    # "abra o projeto-node no vscode" / "abre meu app no cursor"
+    _IDE_RE = r'(vscode|vs\s*code|cursor|pycharm|idea|intellij|webstorm|sublime)'
+    m_proj = re.search(
+        rf'\b(?:abra|abre|abrir|open)\b\s+(?:o\s+|a\s+|meu\s+|minha\s+)?(.+?)\s+(?:no|na|em)\s+{_IDE_RE}',
+        t,
+    )
+    if m_proj:
+        project_name = m_proj.group(1).strip(' ,')
+        ide_name = m_proj.group(2).replace(' ', '')
+        run = bool(re.search(
+            r'\b(rode|rodar|roda|execute|executar|executa|inicia|iniciar|start|run)\b', t
+        ))
+        return {"action": "open_project", "app": ide_name, "query": project_name, "run": run, "delay": None}
+
+    # ── Abrir aplicativos / projetos ─────────────────────────────────────────
+    # Regra: regex só lida com frases SIMPLES ("abre o vscode", "abre o chrome").
+    # Frases com 2+ entidades vão para desconhecido.
+
+    # Atalhos semânticos: "quero programar" → vscode
+    for padrao, app in _APP_SEMANTICOS.items():
+        if _match(t, padrao):
+            if _match(t, r'\bprojeto\b'):
+                # "quero programar no projeto-node" → open_project
+                m_p = re.search(r'\bprojeto[-\w]*', t)
+                project_name = m_p.group(0) if m_p else None
+                return {"action": "open_project", "app": app, "query": project_name, "delay": None}
+            return {"action": "open_app", "query": app, "delay": None}
+
+    if _match(t, _OPEN_VERBS):
+        # Frase simples: contém só um app conhecido, sem outras entidades relevantes
+        apps_encontrados = [app for app in _APP_KEYWORDS if app in t]
+        if len(apps_encontrados) == 1:
+            app = apps_encontrados[0]
+            # Verifica se a frase é simples: sem palavras-extras após o app
+            resto = t.replace(app, '').replace('abre', '').replace('abra', '').replace('abrir', '').replace('o', '').replace('a', '').strip(' ,.')
+            if len(resto) <= 8:  # só artigos/preposições soltos → frase simples
+                return {"action": "open_app", "query": app, "delay": None}
+        # Frase complexa → desconhecido para Claude resolver
+        return {"action": "desconhecido", "query": None, "delay": None}
+
     # ── Jogos ────────────────────────────────────────────────────────────────
-    if _match(t, r'\b(abre|abrir|joga|jogar|iniciar|inicia|lança|lançar|lanca|lancar)\b'):
+    if _match(t, r'\b(abra|abre|abrir|joga|jogar|iniciar|inicia|lança|lançar|lanca|lancar)\b'):
         query = _query(t, ['abre', 'abrir', 'joga', 'jogar', 'iniciar', 'inicia',
                            'lança', 'lançar', 'lanca', 'lancar', 'o jogo', 'jogo'])
         if query:
+            # Se a query contém um app/IDE conhecido (ex: "projeto-node no vscode"), deixa Claude resolver
+            if any(app in query for app in _APP_KEYWORDS):
+                return {"action": "desconhecido", "query": None, "delay": None}
             return {"action": "jogo", "query": query, "delay": None}
 
     return {"action": "desconhecido", "query": None, "delay": None}

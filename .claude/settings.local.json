@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/raelmartins/**)",
+      "Bash(cmd.exe /c \"code \\\\\"C:\\\\Users\\\\raelmartins\\\\Desktop\\\\projeto-node\\\\\"\")",
+      "Bash(cmd.exe /c \"start cmd /k \\\\\"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop\\\\projeto-node && npm run dev\\\\\"\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop\\\\projeto-node && npm run dev\")",
+      "Bash(python:*)",
+      "Bash(uv run:*)",
+      "Bash(cmd.exe /c \"start cmd /k \\\\\"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npm create vite@latest travel -- --template react\\\\\"\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npm create vite@latest travel -- --template react\")",
+      "Bash(cmd.exe /c \"if exist C:\\\\Users\\\\raelmartins\\\\Desktop\\\\travel echo EXISTS\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npx --yes create-vite@latest travel --template react && cd travel && npm install\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npm create --yes vite@5 travel -- --template react && cd travel && npm install\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop\\\\travel && npm install\")"
+    ]
+  }
+}

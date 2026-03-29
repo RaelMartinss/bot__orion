@@ -344,6 +344,30 @@ async def receive_intention(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update_telegram_menu(app)
 
+        try:
+            from ml.intent_model import adicionar_exemplo
+
+            original_text = context.user_data.get(_KEY_ORIGINAL_TEXT, "")
+            exemplos = []
+
+            # 1. Descrição dada pelo usuário ("aumenta o volume em 5%")
+            if user_intention:
+                exemplos.append(user_intention)
+
+            # 2. Texto original que disparou o fluxo — só se não for slash command
+            if original_text and not original_text.startswith("/"):
+                exemplos.append(original_text)
+
+            # 3. Transcrição de voz bruta, se existir e for diferente dos anteriores
+            if voice_text and voice_text not in exemplos:
+                exemplos.append(voice_text)
+
+            for exemplo in exemplos:
+                adicionar_exemplo(exemplo, command_name)
+
+        except Exception as ml_err:
+            logger.warning(f"Falha ao adicionar exemplos ao ML: {ml_err}")
+
         await status_msg.edit_text(
             f"Integração de sistema concluída.\n"
             f"Arquivo alocado: `handlers/custom/{command_name}.py`\n"

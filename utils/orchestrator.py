@@ -31,7 +31,7 @@ from utils.memoria import carregar_memoria_longa, salvar_fato
 logger = logging.getLogger(__name__)
 
 _USER_LOCKS: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
-_MAX_TURNS = 4
+_MAX_TURNS = 6
 _MAX_API_RETRIES = 4
 _BACKOFF_BASE_SECONDS = 2
 _PLUGINS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "plugins"))
@@ -40,14 +40,15 @@ _DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0"}
 SYSTEM_ORCHESTRATOR = """Você é o ORION, o núcleo de um Agente de Dados Resiliente (Nível Pro). Sua missão é nunca falhar por falta de informação.
 
 PROTOCOLO DE RESILIÊNCIA (CRÍTICO):
-1. MÚLTIPLAS FONTES: Se uma tarefa exige dados externos (futebol, clima, notícias, etc), seus plugins DEVERÃO tentar múltiplas fontes. 
-   - Ex: Fonte 1 (API) -> Fonte 2 (Scraping via BeautifulSoup/Requests) -> Fonte 3 (Google Search).
+1. MÚLTIPLAS FONTES: Se uma tarefa exige dados externos (futebol, clima, notícias, etc), tente múltiplas fontes.
+   - Ex: Fonte 1 (buscar_web) -> Fonte 2 (ler_url no melhor resultado).
 2. PLUGIN PATTERN: Crie plugins em `plugins/{nome}.py` com a função `def run(args):`.
-3. CONSCIÊNCIA: Sempre use `listar_arquivos('plugins')` antes de agir para reusar o que já existe.
-4. FEEDBACK: Use `enviar_mensagem_imediata` para reportar o progresso ("Fonte A falhou, consultando Fonte B...").
+3. CONSCIÊNCIA: Use `listar_arquivos('plugins')` SOMENTE quando não souber se um plugin já existe. Para tarefas óbvias (futebol, clima, notícias), vá direto para `buscar_web`.
+4. FEEDBACK: Use `enviar_mensagem_imediata` para reportar o progresso. Use SEMPRE que uma tarefa demorar mais de 2 segundos.
 5. WEB REAL: Para perguntas factuais, atuais ou informacionais, use `buscar_web` e `ler_url` antes de responder. Não invente fatos atuais.
 6. FONTES: Ao responder com dados da web, cite a fonte no texto final de forma curta e inclua a URL quando fizer sentido.
-7. DADOS ATUAIS DE ESPORTE: Próximo jogo, placar, tabela, agenda e resultados devem vir da web, não de plugin local.
+7. DADOS ATUAIS DE ESPORTE: Jogos de hoje, próximo jogo, placar, tabela e resultados → use `buscar_web` diretamente, não plugin local.
+8. EFICIÊNCIA: Você tem turnos limitados. Não desperdice turnos listando arquivos quando já sabe o que fazer.
 
 ESTRUTURA: Use a pasta `plugins/` para todas as extensões. Nunca cite 'modulos/'.
 """
@@ -522,7 +523,7 @@ async def _run_tool(tool_name: str, args: dict, user_id=0, notifier_callback=Non
     return f"Ferramenta desconhecida."
 
 
-async def run_orchestrator(user_text: str, chat_history: list = None, user_id: int = 0, is_mic: bool = False, notifier_callback=None) -> dict:
+async def run_orchestrator(user_text: str, chat_history: list = None, user_id: int = 0, is_mic: bool = False, notifier_callback=None, pending_context: dict | None = None) -> dict:
     """
     Controla o fluxo da IA com Tools.
     notifier_callback: função assíncrona(msg) para enviar respostas parciais.
@@ -555,6 +556,7 @@ async def run_orchestrator(user_text: str, chat_history: list = None, user_id: i
             user_id=user_id,
             is_mic=is_mic,
             notifier_callback=notifier_callback,
+            pending_context=pending_context,
         )
 
 
@@ -696,7 +698,7 @@ def try_local_route(user_text: str) -> str | None:
     return _executar_plugin_local(plugin_name, plugin_query)
 
 
-async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: int, is_mic: bool, notifier_callback) -> dict:
+async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: int, is_mic: bool, notifier_callback, pending_context: dict | None = None) -> dict:
     wants_to_learn = False
     games_listed = []
     original_user_text = user_text
@@ -743,7 +745,15 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
         "EVITE LISTAS, EXCESSO DE DETALHES, EMOJIS, MARKDOWN E TOM DE TEXTO ESCRITO.]"
         if is_mic else ""
     )
-    prompt_personalizado = SYSTEM_ORCHESTRATOR + contexto_memoria + contexto_sessao + "\n\n[PRIORIDADE: Se uma tarefa demorar mais de 2 segundos, use 'enviar_mensagem_imediata' para avisar o usuário que você está trabalhando antes de continuar.]"
+    contexto_pending = ""
+    if pending_context and pending_context.get("query"):
+        contexto_pending = (
+            f"\n\n[CONTEXTO PENDENTE: O usuário acabou de executar '{pending_context['action']}' "
+            f"com a query \"{pending_context['query']}\". "
+            f"Se a mensagem atual indica uma plataforma diferente (YouTube, Spotify, Netflix), "
+            f"reuse esta query na nova plataforma sem pedir confirmação.]"
+        )
+    prompt_personalizado = SYSTEM_ORCHESTRATOR + contexto_memoria + contexto_sessao + contexto_pending + "\n\n[PRIORIDADE: Se uma tarefa demorar mais de 2 segundos, use 'enviar_mensagem_imediata' para avisar o usuário que você está trabalhando antes de continuar.]"
 
     headers = {
         "x-api-key": _get_api_key(),

@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_TRAIN_PATH = BASE_DIR / "treino.json"
 DEFAULT_MODEL_PATH = BASE_DIR / "modelo.pkl"
-DEFAULT_CONFIDENCE_THRESHOLD = 0.18
+DEFAULT_CONFIDENCE_THRESHOLD = 0.45
+DEFAULT_MARGIN_THRESHOLD = 0.15   # diferença mínima entre 1º e 2º colocado
 
 
 class IntentModel:
@@ -53,15 +54,19 @@ class IntentModel:
         x = self.vectorizer.transform([texto])
         return str(self.model.predict(x)[0])
 
-    def prever_com_confianca(self, texto: str) -> tuple[str, float]:
+    def prever_com_confianca(self, texto: str) -> tuple[str, float, float]:
+        """Retorna (intent, top_confidence, margin_sobre_segundo)."""
         x = self.vectorizer.transform([texto])
         intent = str(self.model.predict(x)[0])
         if hasattr(self.model, "predict_proba"):
-            probabilidades = self.model.predict_proba(x)[0]
-            confianca = float(max(probabilidades))
+            probs = sorted(self.model.predict_proba(x)[0], reverse=True)
+            top = float(probs[0])
+            second = float(probs[1]) if len(probs) > 1 else 0.0
+            margin = top - second
         else:
-            confianca = 0.0
-        return intent, confianca
+            top = 0.0
+            margin = 0.0
+        return intent, top, margin
 
 
 _intent_model: IntentModel | None = None
@@ -89,47 +94,89 @@ def get_intent_model() -> IntentModel:
 def interpretar_comando(
     texto: str,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+    margin_threshold: float = DEFAULT_MARGIN_THRESHOLD,
 ) -> dict | None:
     texto_limpo = (texto or "").strip()
     if len(texto_limpo) < 3:
         return None
 
     model = get_intent_model()
-    intent, confidence = model.prever_com_confianca(texto_limpo)
+    intent, confidence, margin = model.prever_com_confianca(texto_limpo)
 
-    if confidence < confidence_threshold:
+    if confidence < confidence_threshold or margin < margin_threshold:
         logger.info(
-            "🧠 ML local sem confiança suficiente: intent=%s confidence=%.2f texto=%r",
-            intent,
-            confidence,
-            texto_limpo,
+            "🧠 ML rejeitado: intent=%s confidence=%.2f margin=%.2f texto=%r",
+            intent, confidence, margin, texto_limpo,
         )
         return None
 
+    query = _extrair_query(texto_limpo, intent)
     logger.info(
-        "🧠 ML local classificou: intent=%s confidence=%.2f texto=%r",
-        intent,
-        confidence,
-        texto_limpo,
+        "🧠 ML classificou: intent=%s query=%r confidence=%.2f margin=%.2f texto=%r",
+        intent, query, confidence, margin, texto_limpo,
     )
     return {
         "action": intent,
-        "query": None,
+        "query": query,
         "delay": None,
         "confidence": confidence,
         "source": "ml",
     }
 
 
+_QUERY_TRIGGERS: dict[str, list[str]] = {
+    "spotify": [
+        'toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
+        'reproduz', 'reproduzir', 'bota', 'botar', 'põe',
+        'escuta', 'escutar', 'spotify', 'música', 'musica',
+        'song', 'faixa', 'a música', 'a musica', 'no spotify',
+        'me', 'pra mim', 'para mim',
+    ],
+    "youtube": [
+        'youtube', 'no youtube', 'assistir', 'assiste', 'ver',
+        'video', 'vídeo', 'clipe', 'busca', 'buscar',
+        'toca', 'tocar', 'play', 'ouvir', 'coloca', 'colocar',
+        'escuta', 'escutar', 'reproduz', 'reproduzir',
+    ],
+    "netflix": [
+        'netflix', 'filme', 'série', 'serie', 'episódio', 'episodio',
+        'na netflix', 'assistir', 'assiste',
+    ],
+    "jogo": [
+        'abre', 'abrir', 'joga', 'jogar', 'iniciar', 'inicia',
+        'lança', 'lançar', 'lanca', 'lancar', 'o jogo', 'jogo',
+    ],
+}
+
+
+def _extrair_query(texto: str, action: str) -> str | None:
+    """Extrai a query do texto para ações que a requerem (spotify, youtube, etc.)."""
+    triggers = _QUERY_TRIGGERS.get(action)
+    if not triggers:
+        return None
+    from utils.intent_parser import _query
+    return _query(texto, triggers)
+
+
 def adicionar_exemplo(texto: str, intencao: str, caminho: str | Path = DEFAULT_TRAIN_PATH):
+    texto = (texto or "").strip()
+    if len(texto) < 3:
+        return
+
     caminho = Path(caminho)
     with caminho.open("r", encoding="utf-8") as f:
         dados = json.load(f)
+
+    if any(d["texto"] == texto and d["intencao"] == intencao for d in dados):
+        logger.debug("🧠 Exemplo já existe no treino: %r → %r", texto, intencao)
+        return
 
     dados.append({"texto": texto, "intencao": intencao})
 
     with caminho.open("w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
+
+    logger.info("🧠 Novo exemplo de treino: %r → %r (total: %d)", texto, intencao, len(dados))
 
     global _intent_model
     _intent_model = None
