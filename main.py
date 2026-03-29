@@ -23,6 +23,7 @@ from handlers.voice import handle_text
 from handlers.controle import pausar, proxima, anterior
 import utils.mic_listener as mic_listener
 from utils import interface_bridge
+from utils.daily_alerts import start_daily_alerts
 
 from dotenv import load_dotenv
 
@@ -127,6 +128,8 @@ async def _run():
         mic_listener.configure(loop=loop, bot=app.bot)
         mic_listener.update_chat_id(chat_id=ADMIN_ID, user_id=ADMIN_ID)
         mic_listener.iniciar()
+
+        await start_daily_alerts(app.bot, user_ids=[ADMIN_ID])
 
         logger.info("✅ Orion Bot rodando — voz, texto e microfone ativos.")
         await app.updater.start_polling()

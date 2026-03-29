@@ -111,6 +111,26 @@ def parse_intent(texto: str) -> dict:
             and not _match(t, r'\b(spotify|youtube|netflix|jogo|desligar|cancelar)\b'):
         return {"action": "anterior", "query": None, "delay": None}
 
+    # ── Alarme ───────────────────────────────────────────────────────────────
+    if _match(t, r'\b(alarme|lembra|lembrete|avisa|notifica|acorda)\b'):
+        horario = _hora(t)
+        if horario:
+            # Extrai mensagem: tudo após "de", "para", "pra" ou "que"
+            msg_match = re.search(
+                r'\b(?:de|para|pra|que|com mensagem|dizendo|avisando(?:\s+que)?)\s+(.+)$', t
+            )
+            mensagem = msg_match.group(1).strip() if msg_match else "Lembrete!"
+            return {"action": "set_alarm", "query": horario, "message": mensagem, "delay": None}
+
+    # ── Time favorito ────────────────────────────────────────────────────────
+    if _match(t, r'\b(meu time|time favorito|torço|torcedor|sou do|sou da)\b'):
+        m_time = re.search(
+            r'\b(flamengo|vasco|palmeiras|corinthians|s[aã]o paulo|botafogo|'
+            r'fluminense|gr[eê]mio|internacional|cruzeiro|atl[eé]tico)\b', t
+        )
+        if m_time:
+            return {"action": "set_favorite_team", "query": m_time.group(1), "delay": None}
+
     # ── Sistema ──────────────────────────────────────────────────────────────
     if _match(t, r'\b(desliga|desligar|shutdown)\b'):
         return {"action": "desligar", "query": None, "delay": _num(t)}
@@ -265,3 +285,30 @@ def _query(texto: str, triggers: list[str]) -> str | None:
                r'dos\s|das\s|no\s|na\s|nos\s|nas\s|para\s|pra\s|em\s|e\s)', '', t)
     t = t.strip(' ,.:;!?-')
     return t if len(t) >= 2 else None
+
+
+def _hora(texto: str) -> str | None:
+    """Extrai horário no formato HH:MM de texto PT-BR. Ex: '16h55', '16:55', '4 e meia' → '16:30'."""
+    # 16h55 / 16h / 16:55 / 16.55
+    m = re.search(r'\b(\d{1,2})[h:.](\d{2})\b', texto)
+    if m:
+        h, mi = int(m.group(1)), int(m.group(2))
+        if 0 <= h <= 23 and 0 <= mi <= 59:
+            return f"{h:02d}:{mi:02d}"
+
+    # "16h" sem minutos
+    m = re.search(r'\b(\d{1,2})h\b', texto)
+    if m:
+        h = int(m.group(1))
+        if 0 <= h <= 23:
+            return f"{h:02d}:00"
+
+    # "4 e meia" → 4:30 / "4 da tarde" → 16:00
+    m = re.search(r'\b(\d{1,2})\s+e\s+meia\b', texto)
+    if m:
+        h = int(m.group(1))
+        if _match(texto, r'\b(tarde|noite)\b') and h < 12:
+            h += 12
+        return f"{h:02d}:30"
+
+    return None

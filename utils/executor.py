@@ -7,7 +7,7 @@ Usado pelo mic_listener e pelos handlers de voz/texto.
 import logging
 import os
 import subprocess
-import threading
+
 import webbrowser
 from urllib.parse import quote_plus
 
@@ -94,25 +94,24 @@ def executar_intent(intent: dict) -> str:
     if action == "open_project":
         app_nome = intent.get("app") or "vscode"
         target = intent.get("target") or query
-        ide_lower = app_nome.lower().replace(" ", "")
         resultado = _abrir_projeto(target, app_nome)
         if intent.get("run") and target:
-            caminho = _encontrar_pasta_projeto(target)
-            run_cmd = _get_run_cmd(caminho) if caminho else None
-            if run_cmd and ide_lower in ("vscode", "code", "cursor"):
-                threading.Thread(
-                    target=_abrir_terminal_vscode_cmd,
-                    args=(run_cmd, target),
-                    daemon=True,
-                ).start()
-                return f"{resultado}\n▶️ Terminal integrado: `{run_cmd}`"
-            elif run_cmd:
-                return f"{resultado}\n{_rodar_projeto(target)}"
+            return f"{resultado}\n{_rodar_projeto(target)}"
         return resultado
 
     if action == "run_project":
         target = intent.get("target") or query
         return _rodar_projeto(target)
+
+    if action == "set_alarm":
+        return _criar_alarme(query, intent.get("message", "Lembrete!"))
+
+    if action == "set_favorite_team":
+        if query:
+            from utils.memoria import salvar_preferencia
+            # user_id não está disponível no executor — salvo via callback no voice.py
+            return f"⚽ Time favorito salvo: *{query.title()}*! Vou te avisar quando ele jogar."
+        return "❓ Não identifiquei o time."
 
     if action == "open_app":
         app_nome = intent.get("app") or query
@@ -286,6 +285,41 @@ def _get_run_cmd(caminho: str) -> str | None:
     return None
 
 
+def _criar_alarme(horario: str | None, mensagem: str = "Lembrete!") -> str:
+    """Cria um alarme de thread que dispara notificação Windows no horário dado (HH:MM)."""
+    import threading
+    import time as _time
+    from datetime import datetime
+
+    if not horario:
+        return "❓ Não entendi o horário. Diga algo como: _me lembra às 16h55 de tomar água_"
+
+    def _loop():
+        while True:
+            if datetime.now().strftime("%H:%M") == horario:
+                try:
+                    from win10toast import ToastNotifier
+                    ToastNotifier().show_toast("⏰ Orion", mensagem, duration=10, threaded=True)
+                except Exception:
+                    # Fallback: notificação via PowerShell (sem dependência extra)
+                    import subprocess
+                    ps_cmd = (
+                        f'[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, '
+                        f'ContentType = WindowsRuntime] | Out-Null; '
+                        f'$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent('
+                        f'[Windows.UI.Notifications.ToastTemplateType]::ToastText01); '
+                        f'$xml.GetElementsByTagName("text")[0].AppendChild($xml.CreateTextNode("{mensagem}")) | Out-Null; '
+                        f'[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Orion")'
+                        f'.Show([Windows.UI.Notifications.ToastNotification]::new($xml))'
+                    )
+                    subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True)
+                break
+            _time.sleep(20)
+
+    threading.Thread(target=_loop, daemon=True, name=f"alarm-{horario}").start()
+    return f"⏰ Alarme configurado para *{horario}*: _{mensagem}_"
+
+
 def _rodar_projeto(nome: str | None) -> str:
     """Detecta o tipo de projeto e executa o comando de run em nova janela CMD."""
     if not nome:
@@ -305,45 +339,6 @@ def _rodar_projeto(nome: str | None) -> str:
     except Exception as e:
         return f"❌ Erro ao rodar *{nome}*: {e}"
 
-
-def _abrir_terminal_vscode_cmd(run_cmd: str, project_name: str) -> None:
-    """
-    Abre o terminal integrado do VSCode (Ctrl+`) e executa run_cmd.
-    Roda em thread daemon com delay para aguardar o VSCode carregar.
-    Usa WSH SendKeys via PowerShell — funciona sem dependências externas.
-    """
-    import time
-    time.sleep(3.5)  # aguarda VSCode carregar o projeto
-
-    # Escapa caracteres especiais do WSH SendKeys no run_cmd
-    safe_cmd = (
-        run_cmd
-        .replace("+", "{+}")
-        .replace("^", "{^}")
-        .replace("%", "{%}")
-        .replace("~", "{~}")
-        .replace("(", "{(}").replace(")", "{)}")
-        .replace("[", "{[}").replace("]", "{]}")
-        .replace("{", "{{").replace("}", "}}")
-    )
-
-    ps_script = (
-        "$wshell = New-Object -ComObject wscript.shell\n"
-        f"$null = $wshell.AppActivate('{project_name}')\n"
-        "Start-Sleep -Milliseconds 600\n"
-        "$wshell.SendKeys('^`')\n"           # Ctrl+` → abre terminal integrado
-        "Start-Sleep -Milliseconds 900\n"
-        f"$wshell.SendKeys('{safe_cmd}')\n"  # digita o comando
-        "$wshell.SendKeys('~')\n"            # ~ = Enter no SendKeys
-    )
-
-    try:
-        subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
-            capture_output=True,
-        )
-    except Exception as e:
-        logger.warning(f"Erro ao abrir terminal integrado VSCode: {e}")
 
 
 def _tem_script_dev(caminho: str) -> bool:

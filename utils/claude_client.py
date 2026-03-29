@@ -99,6 +99,7 @@ mute          → {"action": "mute"}
 desligar      → {"action": "desligar"}
 reiniciar     → {"action": "reiniciar"}
 pausar        → {"action": "pausar"}
+set_alarm     → {"action": "set_alarm", "query": "<HH:MM>", "message": "<mensagem>"}
 conversa      → {"action": "conversa"}
 desconhecido  → {"action": "desconhecido"}
 
@@ -114,6 +115,8 @@ Exemplos:
 "toca zeze di camargo no youtube"                          → {"action": "youtube", "query": "zeze di camargo"}
 "quero ouvir funk"                                         → {"action": "spotify", "query": "funk"}
 "desliga o pc em 5 minutos"                               → {"action": "desligar", "delay": 300}
+"me lembra de tomar água às 16h55"                         → {"action": "set_alarm", "query": "16:55", "message": "tomar água"}
+"coloca um alarme pra amanhã às 8h"                        → {"action": "set_alarm", "query": "08:00", "message": "Lembrete!"}
 "tudo bem?"                                                → {"action": "conversa"}
 
 IMPORTANTE: O campo "target" é SEMPRE o nome da pasta/projeto (ex: "projeto-node", "api-financeira").

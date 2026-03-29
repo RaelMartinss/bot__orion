@@ -102,6 +102,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Salva último objeto aberto para resolver referências pronominais ("rode ele")
         if intent.get("action") == "open_project" and intent.get("target"):
             salvar_ultimo_objeto(user_id, "open_project", intent["target"], intent.get("app"))
+        # Persiste time favorito na memória longa
+        if intent.get("action") == "set_favorite_team" and intent.get("query"):
+            from utils.memoria import salvar_preferencia
+            salvar_preferencia(user_id, "time_favorito", intent["query"])
         mem = carregar_memoria_longa(user_id=update.effective_user.id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
         await interface_bridge.emit_state("falando", resultado[:160])
