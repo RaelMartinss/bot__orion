@@ -17,7 +17,9 @@ from telegram.ext import ContextTypes
 
 from utils.intent_parser import parse_intent, extract_orion_command
 from utils.executor import executar_intent
+from ml.intent_model import interpretar_comando
 import utils.mic_listener as mic_listener
+from utils import interface_bridge
 from utils.memoria import carregar_historico, persistir_historico, carregar_memoria_longa
 from utils.tts_manager import gerar_audio, limpar_audio
 
@@ -50,12 +52,42 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     texto_para_ia = comando if tem_wake_word else texto_original
+    await interface_bridge.emit_state("pensando", f"Processando: {texto_para_ia[:120]}")
+
+    intent = parse_intent(texto_para_ia)
+    if intent.get("action") == "desconhecido":
+        ml_intent = interpretar_comando(texto_para_ia)
+        if ml_intent:
+            intent = ml_intent
+
+    if intent.get("action") != "desconhecido":
+        resultado = executar_intent(intent)
+        mem = carregar_memoria_longa(user_id=update.effective_user.id)
+        voice_active = mem.get("preferencias", {}).get("voice_active", False)
+        await interface_bridge.emit_state("falando", resultado[:160])
+
+        if voice_active:
+            audio_path = await gerar_audio(resultado)
+            if audio_path:
+                try:
+                    await update.message.reply_voice(voice=open(audio_path, 'rb'), caption=resultado)
+                finally:
+                    limpar_audio(audio_path)
+            else:
+                await update.message.reply_text(resultado)
+        else:
+            await update.message.reply_text(resultado, parse_mode="Markdown")
+
+        await interface_bridge.emit_state("idle", "Sistema em espera.")
+        from telegram.ext import ConversationHandler
+        return ConversationHandler.END
 
     from utils.orchestrator import try_local_route
     local_result = try_local_route(texto_para_ia)
     if local_result is not None:
         mem = carregar_memoria_longa(user_id=update.effective_user.id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
+        await interface_bridge.emit_state("falando", local_result[:160])
 
         if voice_active:
             audio_path = await gerar_audio(local_result)
@@ -69,6 +101,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(local_result)
 
+        await interface_bridge.emit_state("idle", "Sistema em espera.")
         from telegram.ext import ConversationHandler
         return ConversationHandler.END
 
@@ -110,6 +143,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Verifica se o usuário quer resposta por voz
         mem = carregar_memoria_longa(user_id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
+        await interface_bridge.emit_state("falando", result["response"][:160])
         
         if voice_active:
             # Envia áudio
@@ -127,6 +161,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     # Se a IA avaliou que precisa que você ensine o comando e engatilhou a feramenta de criar:
     if result.get("wants_to_learn"):
+        await interface_bridge.emit_state("pensando", "Aguardando confirmação para aprendizado.")
         from handlers.auto_learn import ask_confirmation
         return await ask_confirmation(
             update, context, 
@@ -134,5 +169,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             custom_message_text="👇 Confirme aqui abaixo se quiser me ensinar esse novo truque:"
         )
 
+    await interface_bridge.emit_state("idle", "Sistema em espera.")
     from telegram.ext import ConversationHandler
     return ConversationHandler.END

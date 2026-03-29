@@ -4,12 +4,48 @@ import os
 import uuid
 import logging
 import time
+import re
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
 # Configuração Padrão
 DEFAULT_VOICE = "pt-BR-AntonioNeural" # Voz masculina elegante
 TEMP_DIR = "temp_audio"
+
+
+def limpar_texto_para_tts(texto: str) -> str:
+    """
+    Remove marcações visuais e caracteres decorativos para a fala soar natural.
+    """
+    if not texto:
+        return ""
+
+    texto_limpo = texto
+
+    # Remove markdown comum usado no Telegram.
+    texto_limpo = re.sub(r"[*_`~#>\[\]\(\)]", "", texto_limpo)
+
+    # Remove labels técnicas/logs que ficam estranhas em voz.
+    texto_limpo = re.sub(r"\b(?:INFO|DEBUG|WARNING|ERROR)\b:?", "", texto_limpo, flags=re.IGNORECASE)
+
+    # Remove emojis e símbolos decorativos.
+    filtrado = []
+    for ch in texto_limpo:
+        categoria = unicodedata.category(ch)
+        if categoria == "So":
+            continue
+        if ch in {"⚡", "🎙", "🎙️", "💻", "🇧", "🇷", "🌿", "😄", "✅", "❌", "🤖", "🔊", "🔇", "▶", "🎵", "🎬", "🖥"}:
+            continue
+        filtrado.append(ch)
+    texto_limpo = "".join(filtrado)
+
+    # Colapsa espaços e linhas demais.
+    texto_limpo = texto_limpo.replace("\r", "\n")
+    texto_limpo = re.sub(r"\n{2,}", ". ", texto_limpo)
+    texto_limpo = re.sub(r"\s{2,}", " ", texto_limpo)
+
+    return texto_limpo.strip()
 
 async def gerar_audio(texto: str, voice: str = DEFAULT_VOICE) -> str:
     """
@@ -23,8 +59,10 @@ async def gerar_audio(texto: str, voice: str = DEFAULT_VOICE) -> str:
     filepath = os.path.join(TEMP_DIR, filename)
     
     try:
-        # Limpa o texto de marcações Markdown que podem confundir o TTS
-        texto_limpo = texto.replace("*", "").replace("_", "").replace("`", "")
+        texto_limpo = limpar_texto_para_tts(texto)
+        if not texto_limpo:
+            logger.warning("Texto vazio após limpeza para TTS.")
+            return None
         
         communicate = edge_tts.Communicate(texto_limpo, voice)
         await communicate.save(filepath)

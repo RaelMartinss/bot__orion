@@ -5,22 +5,28 @@ Envia notificação ao Telegram após cada comando executado.
 """
 
 import asyncio
+import difflib
 import logging
 import queue
 import threading
 import time
+from collections import deque
+import unicodedata
 
 import numpy as np
+from utils import interface_bridge
 
 logger = logging.getLogger(__name__)
 
 WAKE_WORD = "orion"         # palavra de ativação (lowercase)
 SAMPLE_RATE = 16000
-BLOCK_SIZE = 1024
+BLOCK_MS = 30
+BLOCK_SIZE = int(SAMPLE_RATE * (BLOCK_MS / 1000))
 SILENCE_THRESHOLD = 0.015   # RMS mínimo para considerar fala
-SILENCE_FRAMES = 20         # blocos de silêncio antes de parar (≈1.3s)
-MAX_RECORD_FRAMES = 620     # blocos máximos por gravação (≈10s)
-MIN_SPEECH_FRAMES = 8       # blocos mínimos de fala para processar (≈0.5s)
+SILENCE_FRAMES = 22         # blocos de silêncio antes de parar
+MAX_RECORD_FRAMES = 330     # blocos máximos por gravação
+MIN_SPEECH_FRAMES = 6       # blocos mínimos de fala para processar
+PRE_ROLL_FRAMES = 8         # guarda ~240ms antes da fala começar
 
 # Estado compartilhado
 _chat_id: int | None = None
@@ -68,14 +74,23 @@ def _loop_mic():
         logger.error("sounddevice não instalado. Rode: uv add sounddevice")
         return
 
+    try:
+        import webrtcvad
+        vad = webrtcvad.Vad(2)
+        logger.info("🎙️ WebRTC VAD ativo para detecção de fala.")
+    except ImportError:
+        vad = None
+        logger.warning("webrtcvad não disponível. Usando fallback por RMS no microfone.")
+
     from utils.transcriber import transcrever_numpy
     from utils.intent_parser import parse_intent
     from utils.executor import executar_intent
+    from ml.intent_model import interpretar_comando
 
     logger.info("🎙️ Aguardando comandos de voz no microfone...")
 
     while not _stop_event.is_set():
-        audio = _gravar_ate_silencio(sd)
+        audio = _gravar_ate_silencio(sd, vad)
         if audio is None:
             continue
 
@@ -97,9 +112,44 @@ def _loop_mic():
             continue
 
         logger.info(f"🎙️ Wake word detectada! Comando: '{comando}'")
+        interface_bridge.emit_state_sync("ouvindo", f"Comando detectado: {comando[:120]}")
+
+        intent = parse_intent(comando)
+        if intent.get("action") == "desconhecido":
+            ml_intent = interpretar_comando(comando)
+            if ml_intent:
+                intent = ml_intent
+
+        if intent.get("action") != "desconhecido":
+            resultado = executar_intent(intent)
+            logger.info(f"🎙️ Execução local direta: {intent.get('action')} -> {resultado}")
+            interface_bridge.emit_state_sync("falando", resultado[:160])
+            _processar_resposta_local_async(comando, resultado)
+            continue
         
         # Execução Inteligente (Jarvis Mode)
         _processar_comando_async(comando)
+
+
+def _processar_resposta_local_async(comando: str, resposta: str):
+    """Fala e notifica resultados locais sem envolver o orquestrador."""
+    if not _loop:
+        return
+
+    async def _task():
+        from utils.tts_manager import gerar_audio, reproduzir_local, limpar_audio
+
+        audio_path = await gerar_audio(resposta)
+        if audio_path:
+            try:
+                reproduzir_local(audio_path, wait=True)
+            finally:
+                limpar_audio(audio_path)
+
+        _notificar_telegram(comando, resposta)
+        await interface_bridge.emit_state("idle", "Sistema em espera.")
+
+    asyncio.run_coroutine_threadsafe(_task(), _loop)
 
 
 def _processar_comando_async(comando: str):
@@ -124,11 +174,13 @@ def _processar_comando_async(comando: str):
 
         # 1. Carrega o contexto (memória curto prazo)
         historico = carregar_historico(_user_id)
+        await interface_bridge.emit_state("pensando", f"Processando áudio: {comando[:120]}")
 
         # 1.5. Tenta rota local determinística antes de chamar a IA
         local_result = try_local_route(comando)
         if local_result is not None:
             logger.info(f"🎙️ Rota local aplicada no mic para comando: {comando}")
+            await interface_bridge.emit_state("falando", local_result[:160])
             audio_path = await gerar_audio(local_result)
             if audio_path:
                 try:
@@ -136,6 +188,7 @@ def _processar_comando_async(comando: str):
                 finally:
                     limpar_audio(audio_path)
             _notificar_telegram(comando, local_result)
+            await interface_bridge.emit_state("idle", "Sistema em espera.")
             return
 
         # 2. Chama o "Cérebro" (Claude) passando o callback de voz imediato
@@ -151,6 +204,7 @@ def _processar_comando_async(comando: str):
         # Se Claude não usou a tool de notificação imediata, fala a resposta final aqui
         if resposta and "Tarefas finalizadas" not in resposta:
             logger.info(f"🎙️ Resposta Final (Mic): {resposta}")
+            await interface_bridge.emit_state("falando", resposta[:160])
             audio_path = await gerar_audio(resposta)
             if audio_path:
                 try:
@@ -160,6 +214,7 @@ def _processar_comando_async(comando: str):
             
             # Notifica o Telegram
             _notificar_telegram(comando, resposta)
+        await interface_bridge.emit_state("idle", "Sistema em espera.")
 
         # 5. Salva no histórico persistente
         if "new_history" in result:
@@ -175,19 +230,55 @@ def _extrair_comando(texto: str) -> str | None:
     Retorna None se a wake word não estiver presente.
     """
     import re
-    t = texto.lower().strip()
-    # Remove pontuação do início antes de checar
+    t = texto.strip()
     t = re.sub(r'^[,.\s]+', '', t)
-    # Aceita variações fonéticas que o Whisper pode gerar
-    # Adicionado variações fonéticas detectadas nos logs: 'óreum', 'orião', 'hóreo', 'hóreum'
-    padrao = r'^(orion|órion|oryon|orin|oron|ori[aã]o|orião|olha|orio|on|audio|olho|óreum|orião|hóreo|hóreum)\s*[,.]?\s*'
-    m = re.match(padrao, t)
-    if not m:
+    if not t:
         return None
-    return t[m.end():].strip() or None
+
+    tokens = t.split(maxsplit=1)
+    primeiro = tokens[0].strip(" ,.;:!?").lower()
+    primeiro_norm = _normalizar_wake_token(primeiro)
+
+    variacoes = {
+        "orion", "oryon", "orin", "oron", "oriao", "oriaum", "orio",
+        "oreo", "oreo", "oreum", "oreon", "oreo", "audio", "olho",
+        "horeo", "horeum", "horion", "aurion",
+    }
+
+    matchou = primeiro_norm in variacoes
+    if not matchou:
+        similares = difflib.get_close_matches(primeiro_norm, list(variacoes), n=1, cutoff=0.72)
+        matchou = bool(similares)
+
+    if not matchou:
+        return None
+
+    restante = tokens[1].strip() if len(tokens) > 1 else ""
+    return restante or None
 
 
-def _gravar_ate_silencio(sd) -> "np.ndarray | None":
+def _normalizar_wake_token(token: str) -> str:
+    token = unicodedata.normalize("NFD", token)
+    token = "".join(ch for ch in token if unicodedata.category(ch) != "Mn")
+    token = "".join(ch for ch in token if ch.isalnum())
+    return token.lower()
+
+
+def _bloco_tem_fala(bloco: np.ndarray, vad) -> bool:
+    """Decide se o bloco contém fala usando WebRTC VAD com fallback RMS."""
+    if vad is not None:
+        try:
+            pcm16 = np.clip(bloco, -1.0, 1.0)
+            pcm16 = (pcm16 * 32767).astype(np.int16).tobytes()
+            return vad.is_speech(pcm16, SAMPLE_RATE)
+        except Exception:
+            logger.debug("Falha no WebRTC VAD; usando fallback RMS.", exc_info=True)
+
+    rms = float(np.sqrt(np.mean(bloco ** 2)))
+    return rms >= SILENCE_THRESHOLD
+
+
+def _gravar_ate_silencio(sd, vad=None) -> "np.ndarray | None":
     """
     Grava até detectar silêncio prolongado ou atingir o tempo máximo.
     Retorna array float32 mono ou None se não houver fala detectada.
@@ -198,6 +289,7 @@ def _gravar_ate_silencio(sd) -> "np.ndarray | None":
         audio_q.put(indata[:, 0].copy())  # mono
 
     blocos: list = []
+    pre_roll: deque = deque(maxlen=PRE_ROLL_FRAMES)
     silence_count = 0
     speech_count = 0
     falando = False
@@ -219,10 +311,12 @@ def _gravar_ate_silencio(sd) -> "np.ndarray | None":
                 except queue.Empty:
                     continue
 
-                rms = float(np.sqrt(np.mean(bloco ** 2)))
+                pre_roll.append(bloco)
 
-                if rms >= SILENCE_THRESHOLD:
-                    falando = True
+                if _bloco_tem_fala(bloco, vad):
+                    if not falando:
+                        falando = True
+                        blocos.extend(list(pre_roll))
                     silence_count = 0
                     speech_count += 1
                     blocos.append(bloco)

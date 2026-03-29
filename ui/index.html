@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ORION Interface</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app">
+    <div class="hud-frame hud-frame-top"></div>
+    <div class="hud-frame hud-frame-right"></div>
+    <div class="hud-frame hud-frame-bottom"></div>
+    <div class="hud-frame hud-frame-left"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span class="brand-text">ORION CORE</span>
+      </div>
+      <div class="status-strip">
+        <span class="status-label">STATE</span>
+        <span id="state-pill" class="state-pill idle">IDLE</span>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="scan-ring ring-a"></div>
+      <div class="scan-ring ring-b"></div>
+      <div class="scan-ring ring-c"></div>
+      <canvas id="particle-canvas" class="particle-canvas"></canvas>
+      <div id="core-shell" class="core-shell idle">
+        <div class="core-glow"></div>
+        <div class="core-grid"></div>
+        <div class="core-symbol">O</div>
+      </div>
+      <div class="crosshair crosshair-h"></div>
+      <div class="crosshair crosshair-v"></div>
+    </main>
+
+    <footer class="console">
+      <div class="console-header">
+        <span>VISUAL LINK</span>
+        <span id="connection-pill" class="connection-pill offline">OFFLINE</span>
+      </div>
+      <p id="message" class="message">Inicializando presença visual do ORION.</p>
+    </footer>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

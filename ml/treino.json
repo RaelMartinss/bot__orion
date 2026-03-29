@@ -1,0 +1,59 @@
+[
+  { "texto": "abrir steam", "intencao": "steam" },
+  { "texto": "abre a steam", "intencao": "steam" },
+  { "texto": "quero jogar", "intencao": "steam" },
+  { "texto": "vamos jogar", "intencao": "steam" },
+  { "texto": "abre meus jogos", "intencao": "steam" },
+
+  { "texto": "tocar música", "intencao": "spotify" },
+  { "texto": "quero ouvir música", "intencao": "spotify" },
+  { "texto": "coloca uma música", "intencao": "spotify" },
+  { "texto": "abre o spotify", "intencao": "spotify" },
+  { "texto": "quero ouvir som", "intencao": "spotify" },
+
+  { "texto": "abre youtube", "intencao": "youtube" },
+  { "texto": "quero ver vídeo", "intencao": "youtube" },
+  { "texto": "coloca um vídeo", "intencao": "youtube" },
+  { "texto": "abrir um clipe", "intencao": "youtube" },
+
+  { "texto": "abre netflix", "intencao": "netflix" },
+  { "texto": "quero assistir filme", "intencao": "netflix" },
+  { "texto": "quero ver uma série", "intencao": "netflix" },
+  { "texto": "coloca a netflix", "intencao": "netflix" },
+
+  { "texto": "muta o som", "intencao": "mute" },
+  { "texto": "silencia tudo", "intencao": "mute" },
+  { "texto": "fica no mudo", "intencao": "mute" },
+
+  { "texto": "aumenta o volume", "intencao": "vol_up" },
+  { "texto": "sobe o som", "intencao": "vol_up" },
+  { "texto": "deixa mais alto", "intencao": "vol_up" },
+
+  { "texto": "abaixa o volume", "intencao": "vol_down" },
+  { "texto": "diminui o som", "intencao": "vol_down" },
+  { "texto": "deixa mais baixo", "intencao": "vol_down" },
+
+  { "texto": "pausa", "intencao": "pausar" },
+  { "texto": "pausa a música", "intencao": "pausar" },
+  { "texto": "para a reprodução", "intencao": "pausar" },
+
+  { "texto": "próxima música", "intencao": "proxima" },
+  { "texto": "pula essa", "intencao": "proxima" },
+  { "texto": "vai para a próxima", "intencao": "proxima" },
+
+  { "texto": "música anterior", "intencao": "anterior" },
+  { "texto": "volta a música", "intencao": "anterior" },
+  { "texto": "vai para a anterior", "intencao": "anterior" },
+
+  { "texto": "desliga o computador", "intencao": "desligar" },
+  { "texto": "desliga o pc", "intencao": "desligar" },
+  { "texto": "pode desligar", "intencao": "desligar" },
+
+  { "texto": "reinicia o computador", "intencao": "reiniciar" },
+  { "texto": "reinicia o pc", "intencao": "reiniciar" },
+  { "texto": "pode reiniciar", "intencao": "reiniciar" },
+
+  { "texto": "cancela isso", "intencao": "cancelar" },
+  { "texto": "aborta o desligamento", "intencao": "cancelar" },
+  { "texto": "não desliga mais", "intencao": "cancelar" }
+]

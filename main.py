@@ -22,6 +22,7 @@ from utils.handler_registry import load_all_custom_handlers, update_telegram_men
 from handlers.voice import handle_text
 from handlers.controle import pausar, proxima, anterior
 import utils.mic_listener as mic_listener
+from utils import interface_bridge
 
 from dotenv import load_dotenv
 
@@ -121,6 +122,8 @@ async def _run():
         #           (chamado pelo on_startup) já faz isso incluindo os custom
 
         loop = asyncio.get_running_loop()
+        await interface_bridge.start(loop)
+        await interface_bridge.emit_state("idle", "Interface sincronizada. Núcleo em espera.")
         mic_listener.configure(loop=loop, bot=app.bot)
         mic_listener.update_chat_id(chat_id=ADMIN_ID, user_id=ADMIN_ID)
         mic_listener.iniciar()
@@ -132,6 +135,7 @@ async def _run():
             await asyncio.Event().wait()  # Roda até Ctrl+C
         finally:
             mic_listener.parar()
+            await interface_bridge.stop()
             await app.updater.stop()
             await app.stop()
 
@@ -144,6 +148,14 @@ async def on_startup(app):
 
 
 if __name__ == "__main__":
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        logger.info("Bot encerrado pelo usuário.")
+
+
+def run_orion():
+    """Entry point reutilizável para launchers desktop."""
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:

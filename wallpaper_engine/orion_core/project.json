@@ -1,0 +1,21 @@
+{
+  "contentrating": "Everyone",
+  "description": "ORION Core live wallpaper conectado ao backend local do Orion por WebSocket.",
+  "file": "index.html",
+  "general": {
+    "properties": {},
+    "supportsaudioprocessing": false,
+    "supportsfullscreenpause": true
+  },
+  "preview": "",
+  "tags": [
+    "orion",
+    "hud",
+    "jarvis",
+    "orange",
+    "web"
+  ],
+  "title": "ORION Core",
+  "type": "web",
+  "version": 1
+}

@@ -50,6 +50,10 @@ def executar_intent(intent: dict) -> str:
         os.startfile("spotify:")
         return "🎵 Spotify aberto."
 
+    if action == "steam":
+        os.startfile("steam:")
+        return "🎮 Steam aberto."
+
     if action == "youtube":
         if query:
             url, titulo = _primeiro_video_youtube(query)

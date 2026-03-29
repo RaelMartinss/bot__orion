@@ -737,7 +737,12 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
         lista_formatada = "\n".join([f"- {f}" for f in fatos])
         contexto_memoria = f"\n\nFATOS SOBRE O USUÁRIO (Memorizados anteriormente):\n{lista_formatada}"
     
-    contexto_sessao = "\n\n[SISTEMA: VOCÊ ESTÁ OUVINDO E FALANDO PELO MICROFONE DO PC AGORA. RESPONDA VOCALMENTE.]" if is_mic else ""
+    contexto_sessao = (
+        "\n\n[SISTEMA: VOCÊ ESTÁ OUVINDO E FALANDO PELO MICROFONE DO PC AGORA. "
+        "RESPONDA VOCALMENTE COM FRASES CURTAS, NATURAIS E FÁCEIS DE FALAR. "
+        "EVITE LISTAS, EXCESSO DE DETALHES, EMOJIS, MARKDOWN E TOM DE TEXTO ESCRITO.]"
+        if is_mic else ""
+    )
     prompt_personalizado = SYSTEM_ORCHESTRATOR + contexto_memoria + contexto_sessao + "\n\n[PRIORIDADE: Se uma tarefa demorar mais de 2 segundos, use 'enviar_mensagem_imediata' para avisar o usuário que você está trabalhando antes de continuar.]"
 
     headers = {
