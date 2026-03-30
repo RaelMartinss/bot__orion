@@ -132,6 +132,14 @@ async def _run():
 
         await start_daily_alerts(app.bot, user_ids=[ADMIN_ID])
 
+        # Módulo de Arquivos: inicia indexação em background ao ligar o bot
+        try:
+            from plugins.files.indexer import carregar_indice
+            carregar_indice()  # dispara reindexação em background se necessário
+            logger.info("✅ Indexador de arquivos iniciado.")
+        except Exception as _idx_err:
+            logger.warning(f"Indexador de arquivos não iniciou: {_idx_err}")
+
         # Vision: injeta callback assíncrono para enviar sugestões via Telegram
         async def _vision_send(texto: str):
             try:

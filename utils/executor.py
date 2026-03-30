@@ -41,22 +41,34 @@ def executar_intent(intent: dict) -> str:
         from datetime import datetime
         hora = datetime.now().hour
         if hora < 12:
-            periodo = "bom dia"
+            periodo = "Bom dia"
+            complemento = "Sistemas online. Pronto para o dia."
         elif hora < 18:
-            periodo = "boa tarde"
+            periodo = "Boa tarde"
+            complemento = "Tudo operacional por aqui."
         else:
-            periodo = "boa noite"
-        return f"🤖 {periodo.capitalize()}! Sou o *Orion*, seu assistente pessoal.\nComo posso ajudar?"
+            periodo = "Boa noite"
+            complemento = "Ainda acordado? Estou aqui."
+        return f"🤖 {periodo}. {complemento}"
 
     if action == "apresentar":
         return (
             "🤖 Olá! Eu sou o *Orion*, seu assistente pessoal.\n\n"
             "Posso:\n"
-            "• Tocar música no Spotify ou YouTube\n"
-            "• Abrir jogos da Steam\n"
-            "• Controlar o volume\n"
-            "• Desligar/reiniciar o PC\n"
-            "• Criar novos comandos personalizados\n\n"
+            "• 🎵 Tocar música no Spotify ou YouTube\n"
+            "• 🎮 Abrir jogos da Steam\n"
+            "• 🔊 Controlar o volume\n"
+            "• 💤 Desligar/reiniciar o PC\n"
+            "• 📂 Abrir pastas e projetos rapidamente\n"
+            "• 🔍 Buscar arquivos por contexto\n"
+            "• 🗂️ Organizar seus Downloads automaticamente\n"
+            "• ✉️ Ler e enviar e-mails\n"
+            "• 📅 Gerenciar sua agenda\n"
+            "• 🧠 Criar novos comandos personalizados\n\n"
+            "💡 *Exemplos de arquivos:*\n"
+            "_'acha o contrato de março'_\n"
+            "_'abre a pasta de downloads'_\n"
+            "_'organiza meus downloads'_\n\n"
             "_Pode me chamar por voz dizendo 'Orion' + o que você quer!_"
         )
 
@@ -218,6 +230,61 @@ def executar_intent(intent: dict) -> str:
         os.system("shutdown /a")
         return "✅ Desligamento cancelado."
 
+    if action == "bloquear_pc":
+        os.system("rundll32.exe user32.dll,LockWorkStation")
+        return "🔒 Computador bloqueado."
+
+    if action == "fechar_app":
+        return _fechar_app_conhecido(query or "")
+
+
+    # ── Gerenciamento de Arquivos ─────────────────────────────────────────────
+
+    if action == "file_search":
+        from plugins.files.search import buscar_arquivo
+        return buscar_arquivo(
+            query=query or "",
+            tipo=intent.get("tipo"),
+            data_ref=intent.get("data_ref"),
+        )
+
+    if action == "file_open_file":
+        from plugins.files.search import abrir_arquivo_por_nome
+        return abrir_arquivo_por_nome(query or "")
+
+    if action == "file_open_folder":
+        from plugins.files.open import abrir_pasta
+        return abrir_pasta(query or "")
+
+    if action == "file_organize":
+        from plugins.files.organize import organizar_downloads, organizar_por_mes
+        por_mes = intent.get("por_mes", False)
+        if por_mes:
+            return organizar_por_mes(confirmar=False)
+        return organizar_downloads(confirmar=False)
+
+    if action == "file_organize_confirm":
+        from plugins.files.organize import organizar_downloads, organizar_por_mes
+        if intent.get("query") == "por_mes":
+            return organizar_por_mes(confirmar=True)
+        return organizar_downloads(confirmar=True)
+
+    if action == "file_reindex":
+        from plugins.files.indexer import reindexar
+        return reindexar()
+
+    if action == "file_index_status":
+        from plugins.files.indexer import status_indice
+        return status_indice()
+
+    if action == "file_list_downloads":
+        from plugins.files.organize import listar_downloads
+        return listar_downloads()
+
+    if action == "file_list_projects":
+        from plugins.files.open import listar_projetos
+        return listar_projetos()
+
     # Tenta carregar módulos dinâmicos da pasta /plugins
     resultado_custom = _executar_modulo_custom(action, query)
     if resultado_custom:
@@ -350,6 +417,48 @@ def _abrir_app_conhecido(nome: str) -> str | None:
     except Exception as e:
         logger.error(f"Erro ao abrir app {chave}: {e}")
         return f"❌ Erro ao abrir *{chave}*: {e}"
+
+
+def _fechar_app_conhecido(nome: str) -> str:
+    """Tenta fechar um app Windows pelo nome."""
+    chave = nome.lower().strip()
+    cmd = KNOWN_APPS.get(chave)
+    if not cmd:
+        for alias, comando in KNOWN_APPS.items():
+            if chave in alias or alias in chave:
+                cmd = comando
+                chave = alias
+                break
+
+    # Mapa de processos conhecidos
+    proc_map = {
+        "__browser__": ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe"],
+        "__browser__firefox": ["firefox.exe"],
+        "__browser__msedge": ["msedge.exe"],
+        "code": ["Code.exe"],
+        "notepad": ["notepad.exe"],
+        "notepad++": ["notepad++.exe"],
+        "calc": ["CalculatorApp.exe", "calc.exe"],
+        "explorer": ["explorer.exe"],
+        "steam:": ["steam.exe"],
+        "discord": ["Discord.exe"],
+        "obs64": ["obs64.exe"],
+        "vlc": ["vlc.exe"],
+        "winword": ["WINWORD.EXE"],
+        "excel": ["EXCEL.EXE"],
+        "powerpnt": ["POWERPNT.EXE"],
+    }
+
+    if not cmd:
+        # Fallback: se não for mapeado, tenta matar pelo nome da query crua
+        os.system(f'taskkill /F /IM "{chave.replace(" ", "")}.exe" /T >nul 2>&1')
+        return f"🛑 Tentando fechar *{chave}*..."
+
+    processos = proc_map.get(cmd, [f"{cmd}.exe"])
+    for p in processos:
+        os.system(f'taskkill /F /IM "{p}" /T >nul 2>&1')
+        
+    return f"🛑 Fechando *{chave}*..."
 
 
 def _criar_projeto(name: str | None, framework: str | None = None, location: str = "desktop") -> str:

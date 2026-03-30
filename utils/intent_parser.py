@@ -69,7 +69,11 @@ def parse_intent(texto: str) -> dict:
     """
     t = texto.lower().strip()
 
-    # Saudações e apresentações foram removidas do Regex para que o Claude (LLM) lide com elas de forma 100% natural.
+    # Saudações simples são tratadas localmente para funcionar mesmo offline.
+    # Frases curtas de cumprimento sem outros termos de comando.
+    _apenas_saudacao = _match(t, r'^(bom\s*dia|boa\s*tarde|boa\s*noite|olá|ola|oi|e\s*aí|e\s*ai|eae|fala|salve|hey|hello)\b[\s!?.]*$')
+    if _apenas_saudacao:
+        return {"action": "saudacao", "query": None, "delay": None}
 
     # ── Volume ──────────────────────────────────────────────────────────────
     if _match(t, r'\b(muta|mutar|mute|silencia|silenciar|silêncio|silencio|cala|calar)\b'):
@@ -108,6 +112,10 @@ def parse_intent(texto: str) -> dict:
     if _match(t, r'\b(anterior|volta|voltar|prev|previous|retrocede)\b') \
             and not _match(t, r'\b(spotify|youtube|netflix|jogo|desligar|cancelar)\b'):
         return {"action": "anterior", "query": None, "delay": None}
+
+    # ── Navegador / Automação Web ────────────────────────────────────────────
+    if _match(t, r'\b(site|web|internet|navegador|browser|pesquisa|pesquisar|google)\b'):
+        return {"action": "desconhecido", "query": t, "delay": None}
 
     # ── Alarme ───────────────────────────────────────────────────────────────
     # ── Agenda / Calendário ───────────────────────────────────────────────────
@@ -199,6 +207,14 @@ def parse_intent(texto: str) -> dict:
     # ── Sistema ──────────────────────────────────────────────────────────────
     if _match(t, r'\b(desliga|desligar|shutdown)\b'):
         return {"action": "desligar", "query": None, "delay": _num(t)}
+
+    if _match(t, r'\b(bloqueia|bloquear|trava|travar|lock)\b') and _match(t, r'\b(pc|computador|tela|windows)\b'):
+        return {"action": "bloquear_pc", "query": None, "delay": None}
+
+    if _match(t, r'\b(fecha|fechar|encerra|encerrar|mata|matar|close)\b'):
+        q = _query(t, ['fecha', 'fechar', 'encerra', 'encerrar', 'mata', 'matar', 'close', 'o', 'a', 'meu', 'minha', 'app', 'aplicativo', 'programa'])
+        return {"action": "fechar_app", "query": q or t, "delay": None}
+
 
     if _match(t, r'\b(reinicia|reiniciar|reinicie|restart|restarta)\b'):
         return {"action": "reiniciar", "query": None, "delay": _num(t)}
@@ -317,8 +333,112 @@ def parse_intent(texto: str) -> dict:
             resto = t.replace(app, '').replace('abre', '').replace('abra', '').replace('abrir', '').replace('o', '').replace('a', '').strip(' ,.')
             if len(resto) <= 8:  # só artigos/preposições soltos → frase simples
                 return {"action": "open_app", "query": app, "delay": None}
-        # Frase complexa → desconhecido para Claude resolver
-        return {"action": "desconhecido", "query": None, "delay": None}
+        # Se não for uma chamada exata de app simples, segue o fluxo para verificar pastas e arquivos
+
+
+    # ── Arquivos / Sistema de Arquivos ────────────────────────────────────────
+    # Detectado ANTES dos jogos para evitar conflito com "abre"
+
+    # Confirmar organização (dry-run → execução real)
+    if _match(t, r'\b(confirma|confirmar|execute|executar|faz|fazer)\b') and \
+       _match(t, r'\b(organiz|downloads?|mover|mov[ae])\b'):
+        modo_mes = _match(t, r'\b(m[eê]s|mensal|por m[eê]s)\b')
+        return {
+            "action": "file_organize_confirm",
+            "query": "por_mes" if modo_mes else "por_tipo",
+            "delay": None,
+        }
+
+    # Organizar arquivos / downloads
+    if _match(t, r'\b(organiza|organizar|organize|arruma|arrumar|ordena|ordenar)\b') and \
+       _match(t, r'\b(downloads?|arquivos?|pasta|pdfs?)\b'):
+        tipo_m = re.search(
+            r'\b(pdf|planilha|imagem|foto|v[ií]deo|zip|documento|excel)\b', t
+        )
+        modo_mes = _match(t, r'\b(m[eê]s|mensal|por m[eê]s)\b')
+        pasta_m = re.search(r'\b(downloads?|desktop|documentos?|imagens?)\b', t)
+        return {
+            "action": "file_organize",
+            "query": pasta_m.group(1) if pasta_m else "downloads",
+            "tipo": tipo_m.group(1) if tipo_m else None,
+            "por_mes": modo_mes,
+            "delay": None,
+        }
+
+    # Reindexar arquivos
+    if _match(t, r'\b(reindexar?|indexar?|atualiza[r]?\s+[íi]ndice|recria[r]?\s+[íi]ndice)\b') and \
+       _match(t, r'\b(arquivos?|[íi]ndice|busca)\b'):
+        return {"action": "file_reindex", "query": None, "delay": None}
+
+    # Status do índice
+    if _match(t, r'\b(status|estado|quantos)\b') and \
+       _match(t, r'\b(arquivos?|[íi]ndice)\b'):
+        return {"action": "file_index_status", "query": None, "delay": None}
+
+    # Listar downloads
+    if _match(t, r'\b(lista|listar|mostra|mostrar|ver|vê)\b') and \
+       _match(t, r'\b(downloads?)\b'):
+        return {"action": "file_list_downloads", "query": None, "delay": None}
+
+    # Listar projetos configurados
+    if _match(t, r'\b(lista|listar|mostra|quais)\b') and \
+       _match(t, r'\b(projetos?|pastas?)\b') and \
+       _match(t, r'\b(configura[d]?|tem|tenho|meus?)\b'):
+        return {"action": "file_list_projects", "query": None, "delay": None}
+
+    _FILE_SEARCH_VERBS = r'\b(acha|achar|ach[eo]|encontra|encontrar|encontre|encontrei|busca|buscar|busque|procura|procurar|procure|localiza|localizar)\b'
+    if _match(t, _FILE_SEARCH_VERBS) and not _match(t, r'\b(email|jogo|música|musica|spotify|youtube)\b'):
+        tipo_m = re.search(
+            r'\b(pdf|planilha|excel|word|documento|imagem|foto|v[ií]deo|zip|txt|apresenta[cç][aã]o)\b', t
+        )
+        data_m = re.search(
+            r'\b(hoje|ontem|essa?\s+semana|semana\s+passada|m[eê]s\s+passado|'
+            r'janeiro|fevereiro|mar[cç]o|abril|maio|junho|'
+            r'julho|agosto|setembro|outubro|novembro|dezembro)\b', t
+        )
+        q = _query(t, [
+            'acha', 'achar', 'acho', 'ache', 'achei', 'encontra', 'encontrar', 'encontre', 'encontrei',
+            'busca', 'buscar', 'busque', 'busquei', 'procura', 'procurar', 'procure', 'procurei', 'localiza', 'localizar',
+            'aquele', 'aquela', 'aqueles', 'aquelas', 'o arquivo', 'a pasta',
+            'um arquivo', 'uma pasta', 'o', 'a',
+        ])
+        return {
+            "action": "file_search",
+            "query": q or t,
+            "tipo": tipo_m.group(1) if tipo_m else None,
+            "data_ref": data_m.group(0) if data_m else None,
+            "delay": None,
+        }
+
+    # Abrir arquivo específico (não pasta/projeto)
+    # Ex: "abre aquele pdf", "abre o contrato"
+    if _match(t, _OPEN_VERBS) and \
+       _match(t, r'\b(arquivo|pdf|planilha|documento|excel|imagem|foto)\b') and \
+       not _match(t, r'\b(projeto|pasta|jogo|app|aplicativo)\b'):
+        tipo_m = re.search(
+            r'\b(pdf|planilha|excel|word|documento|imagem|foto|txt)\b', t
+        )
+        q = _query(t, ['abre', 'abrir', 'abra', 'open', 'o arquivo', 'a', 'o', 'aquele', 'aquela'])
+        return {
+            "action": "file_open_file",
+            "query": q or t,
+            "tipo": tipo_m.group(1) if tipo_m else None,
+            "delay": None,
+        }
+
+    # Abrir pasta rápida / projeto
+    # Ex: "abre a pasta de downloads", "abre o projeto do PDV", "abre os documentos"
+    _PASTA_KEYWORDS = (
+        r'\b(downloads?|desktop|documentos?|imagens?|fotos?|v[ií]deos?|'
+        r'm[úu]sicas?|onedrive|pasta|pastinha)\b'
+    )
+    if _match(t, _OPEN_VERBS) and _match(t, _PASTA_KEYWORDS) and \
+       not _match(t, r'\b(jogo|app|aplicativo|spotify|youtube|netflix)\b'):
+        q = _query(t, [
+            'abre', 'abrir', 'abra', 'open', 'a pasta', 'a pasta de',
+            'o', 'a', 'de', 'do', 'da', 'minha', 'meu',
+        ])
+        return {"action": "file_open_folder", "query": q or t, "delay": None}
 
     # ── Jogos ────────────────────────────────────────────────────────────────
     if _match(t, r'\b(abra|abre|abrir|joga|jogar|iniciar|inicia|lança|lançar|lanca|lancar)\b'):
@@ -331,6 +451,7 @@ def parse_intent(texto: str) -> dict:
             return {"action": "jogo", "query": query, "delay": None}
 
     return {"action": "desconhecido", "query": None, "delay": None}
+
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

@@ -1,4 +1,43 @@
+## ✅ v3.0 — Módulo de Gerenciamento de Arquivos (2026-03-30)
+
+### Novos arquivos criados
+- `plugins/files/__init__.py` — exporta o módulo
+- `plugins/files/indexer.py` — indexador JSON (cria índice em background, revalida a cada 12h)
+- `plugins/files/search.py` — busca contextual por nome, tipo e data
+- `plugins/files/open.py` — abre pastas e projetos com aliases PT-BR
+- `plugins/files/organize.py` — organiza Downloads por tipo ou por mês (dry-run obrigatório)
+
+### Arquivos modificados
+- `utils/intent_parser.py` — +8 novos padrões de intenção (`file_search`, `file_open_folder`, `file_open_file`, `file_organize`, `file_organize_confirm`, `file_reindex`, `file_index_status`, `file_list_downloads`, `file_list_projects`)
+- `utils/executor.py` — handlers para todas as novas actions + texto de apresentação atualizado
+- `main.py` — indexador inicia em background ao ligar o bot
+
+### Comandos que passam a funcionar
+| Frase | Ação |
+|---|---|
+| `"acha o contrato de março"` | Busca PDF por nome + data |
+| `"encontra aquela planilha"` | Busca arquivos Excel/CSV |
+| `"abre a pasta de downloads"` | Abre o Explorer na pasta |
+| `"abre os documentos"` | Abre pasta Documents |
+| `"organiza meus downloads"` | Dry-run — mostra o que seria movido |
+| `"confirma organizar downloads"` | Executa a organização de verdade |
+| `"organiza os downloads por mês"` | Dry-run por data de modificação |
+| `"lista meus downloads"` | Lista arquivos mais recentes |
+| `"reindexar arquivos"` | Força reindexação manual |
+
+### Para configurar seus projetos
+Edite `PROJETOS` em `plugins/files/open.py`:
+```python
+PROJETOS = {
+    "pdv":        r"C:\Users\rael.sousa\Desktop\pdv",
+    "financeiro": r"C:\Users\rael.sousa\Documents\financeiro",
+}
+```
+
+---
+
 VERDADE DURA (mas importante)
+
 
 Hoje seu ORION:
 

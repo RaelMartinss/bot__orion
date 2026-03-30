@@ -1,0 +1,144 @@
+{
+  "generated_at": "2026-03-30T12:36:12",
+  "machine_name": "rael-pc",
+  "scan_roots": [
+    "C:\\Users\\rael.sousa"
+  ],
+  "projects": [
+    {
+      "name": "orion_bot",
+      "path": "C:\\Users\\rael.sousa\\Downloads\\orion_bot_v2\\orion_bot",
+      "type": "python",
+      "markers": [
+        "pyproject.toml"
+      ],
+      "last_modified": "2026-03-27T17:14:06.270141",
+      "aliases": [
+        "bot",
+        "orion",
+        "orion bot",
+        "orion_bot",
+        "projeto python"
+      ]
+    },
+    {
+      "name": "frontend",
+      "path": "C:\\Users\\rael.sousa\\Documents\\django_react\\frontend",
+      "type": "node",
+      "markers": [
+        "package.json"
+      ],
+      "last_modified": "2026-02-09T12:43:47.409263",
+      "aliases": [
+        "frontend",
+        "projeto node"
+      ]
+    },
+    {
+      "name": "backend",
+      "path": "C:\\Users\\rael.sousa\\Documents\\django_react\\backend",
+      "type": "django",
+      "markers": [
+        "manage.py",
+        "pyproject.toml"
+      ],
+      "last_modified": "2026-02-09T12:11:18.462809",
+      "aliases": [
+        "backend",
+        "projeto django"
+      ]
+    },
+    {
+      "name": "inertia",
+      "path": "C:\\Users\\rael.sousa\\Documents\\inertia",
+      "type": "django",
+      "markers": [
+        "manage.py"
+      ],
+      "last_modified": "2026-02-09T10:32:24.587358",
+      "aliases": [
+        "inertia",
+        "projeto django"
+      ]
+    },
+    {
+      "name": "Python-3.11.14",
+      "path": "C:\\Users\\rael.sousa\\Downloads\\Python-3.11.14\\Python-3.11.14",
+      "type": "python",
+      "markers": [
+        "setup.py"
+      ],
+      "last_modified": "2025-10-09T13:16:55",
+      "aliases": [
+        "projeto python",
+        "python",
+        "python 3 11 14",
+        "python-3.11.14"
+      ]
+    }
+  ],
+  "folders": {
+    "downloads": "C:\\Users\\rael.sousa\\Downloads",
+    "documents": "C:\\Users\\rael.sousa\\Documents",
+    "desktop": "C:\\Users\\rael.sousa\\Desktop",
+    "pictures": "C:\\Users\\rael.sousa\\Pictures",
+    "videos": "C:\\Users\\rael.sousa\\Videos",
+    "music": "C:\\Users\\rael.sousa\\Music",
+    "onedrive": "C:\\Users\\rael.sousa\\OneDrive",
+    "onedriveconsumer": "C:\\Users\\rael.sousa\\OneDrive",
+    "quick_access": [
+      "R:\\orion_bot\\wallpaper_engine\\orion_core\\index.html",
+      "C:\\Users\\rael.sousa\\Documents\\bot_orion.excalidraw",
+      "C:\\Users\\rael.sousa\\Downloads\\1731503549661-attachment.zip",
+      "C:\\Users\\rael.sousa\\Downloads\\Perfil de viagens (Community).zip",
+      "R:\\cursos\\Full-stack-rocketseat\\projeto-receita-cuckes\\assets\\bg-image.jpg",
+      "R:\\cursos\\Full-stack-rocketseat\\projeto-receita-cuckes\\assets\\main-image.jpg",
+      "R:\\cursos\\Full-stack-rocketseat\\projeto-receita-cuckes\\index.html",
+      "C:\\Users\\rael.sousa\\Documents\\JetBrainsMono-2.304.zip",
+      "C:\\Users\\rael.sousa\\Documents\\espelho-de-ponto-de-RAEL_MARTINS_DE_SOUSA_SANTOS_zoqfon8omz_assinado.pdf",
+      "C:\\Users\\rael.sousa\\Documents\\Rael_02-2026_assinado.pdf",
+      "C:\\Users\\rael.sousa\\Documents\\Rael_assinado.pdf",
+      "C:\\Users\\rael.sousa\\Pictures\\Screenshots\\Captura de tela 2026-03-25 082539.png",
+      "C:\\Users\\rael.sousa\\Documents\\GuiaCurso-IA.pdf",
+      "C:\\Users\\rael.sousa\\AppData\\Local\\Packages\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm\\LocalState\\sessions\\EB3DC9F5A2F2CD9359EBF4517768D0F1D3CE33FC\\transfers\\2026-12\\GuiaCurso-IA.pdf",
+      "C:\\Users\\rael.sousa\\Documents\\extra\\HistoricoEscolarDigital.xml",
+      "C:\\Users\\rael.sousa\\Documents\\RVHE.pdf",
+      "C:\\Users\\rael.sousa\\Desktop",
+      "C:\\Users\\rael.sousa\\Downloads",
+      "C:\\Users\\rael.sousa\\Documents",
+      "C:\\Users\\rael.sousa\\Pictures",
+      "C:\\Users\\rael.sousa\\Music",
+      "C:\\Users\\rael.sousa\\Videos",
+      "C:\\Users\\rael.sousa\\Pictures\\Screenshots",
+      "R:\\cursos",
+      "R:\\cursos\\Full-stack-rocketseat\\projeto-receita-cuckes\\assets",
+      "R:\\cursos\\Full-stack-rocketseat"
+    ],
+    "appdata": "C:\\Users\\rael.sousa\\AppData\\Roaming",
+    "cache": "C:\\Users\\rael.sousa\\AppData\\Local\\Microsoft\\Windows\\INetCache",
+    "cookies": "C:\\Users\\rael.sousa\\AppData\\Local\\Microsoft\\Windows\\INetCookies",
+    "favorites": "C:\\Users\\rael.sousa\\Favorites",
+    "history": "C:\\Users\\rael.sousa\\AppData\\Local\\Microsoft\\Windows\\History",
+    "local_appdata": "C:\\Users\\rael.sousa\\AppData\\Local",
+    "my_music": "C:\\Users\\rael.sousa\\Music",
+    "my_pictures": "C:\\Users\\rael.sousa\\Pictures",
+    "my_video": "C:\\Users\\rael.sousa\\Videos",
+    "nethood": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts",
+    "personal": "C:\\Users\\rael.sousa\\Documents",
+    "printhood": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts",
+    "programs": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs",
+    "recent": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Recent",
+    "sendto": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\SendTo",
+    "start_menu": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu",
+    "startup": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+    "templates": "C:\\Users\\rael.sousa\\AppData\\Roaming\\Microsoft\\Windows\\Templates",
+    "{374de290-123f-4565-9164-39c4925e467b}": "C:\\Users\\rael.sousa\\Downloads",
+    "{24d89e24-2f19-4534-9dde-6a6671fbb8fe}": "C:\\Users\\rael.sousa\\OneDrive\\Documentos",
+    "{339719b5-8c47-4894-94c2-d8f77add44a6}": "C:\\Users\\rael.sousa\\OneDrive\\Imagens"
+  },
+  "programs": [],
+  "vscode_recent_projects": [
+    "r:\\portal-frotas"
+  ],
+  "steam_games": []
+}

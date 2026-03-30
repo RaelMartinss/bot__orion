@@ -53,10 +53,13 @@ PROTOCOLO DE RESILIÊNCIA (CRÍTICO):
 9. DATA/HORA: Use a data/hora injetada no prompt abaixo para responder sobre 'hoje', 'amanhã', etc.
 
 PROTOCOLO DE AUTONOMIA (JARVIS):
-- CAPACIDADES: Quando o usuário perguntar "o que você sabe fazer?", "quais são suas capacidades?" ou similar → chame `verificar_saude_sistema` primeiro, depois responda com base no resultado real.
-- SELF-HEALING: Se um comando falhar porque falta um programa, use `verificar_saude_sistema` para confirmar, depois ofereça instalar via `instalar_ferramenta`. Peça confirmação antes de instalar.
-- PÓS-INSTALL: Após instalar ollama, informe que "consciência local está ativa" e que pode rodar modelos sem internet.
+- CAPACIDADES: Quando o usuário perguntar "o que você sabe fazer?", chame `verificar_saude_sistema` primeiro.
+- SELF-HEALING: Se um comando falhar porque falta um programa, use `verificar_saude_sistema` para confirmar, depois ofereça instalar via `instalar_ferramenta`.
 - PROATIVIDADE: Se `verificar_saude_sistema` retornar [PODE_INSTALAR: ...], mencione proativamente que pode evoluir o sistema.
+
+DIRETRIZ CRÍTICA DE EXECUÇÃO:
+⚠️ É ESTUDANTEMENTE PROIBIDO pedir ao usuário para abrir o CMD/PowerShell ou para fazer os passos "manualmente". Se o usuário pediu a ação, VOCÊ OBRIGATORIAMENTE deve executar usando a tool `executar_terminal`.
+⚠️ SE UMA TASK DO EXECUTAR_TERMINAL FALHAR (Ex: "O sistema não pode encontrar o arquivo especificado"), VOCÊ NÃO PODE DESISTIR. É OBRIGATÓRIO que você use os seus próprios recursos investigativos no Windows (rodando `dir /s \nome` ou similar no `executar_terminal`) para descobrir onde está o problema e consertá-lo sozinho. Não delegue a busca ou execução ao usuário. Seja implacável e resiliente na solução de erros.
 
 ESTRUTURA: Use a pasta `plugins/` para todas as extensões. Nunca cite 'modulos/'.
 """
@@ -227,6 +230,18 @@ TOOLS = [
         }
     },
     {
+        "name": "buscar_arquivos",
+        "description": "Pesquisa recursiva global rápida de arquivos no computador pelo nome ou contexto (ex: 'assinado.py', 'contrato'). Use esta ferramenta para descobrir onde um arquivo está antes de tentar movê-lo, copiá-lo ou abri-lo pelo 'executar_terminal'. O resultado trará o caminho completo do arquivo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Nome exato ou parcial do arquivo"},
+                "tipo": {"type": "string", "description": "(Opcional) Filtro de tipo: pdf, imagem, csv, py, docx"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
         "name": "verificar_saude_sistema",
         "description": (
             "Verifica o que o Orion consegue e não consegue fazer no PC atual. "
@@ -235,6 +250,50 @@ TOOLS = [
             "Use quando o usuário perguntar 'o que você sabe fazer?', 'quais são suas capacidades?' "
             "ou quando você precisar saber se uma ferramenta está disponível antes de usá-la."
         ),
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "browser_goto",
+        "description": "Navega para uma URL ou realiza uma busca rápida no Google. Abre o navegador visível.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL ou termo de busca"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "browser_read",
+        "description": "Lê a página atual do navegador, retornando texto útil, links e campos clicáveis (Markdown).",
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "browser_click",
+        "description": "Clica em um elemento da página (botão, link, texto).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "Texto do botão ou seletor CSS"}
+            },
+            "required": ["selector"]
+        }
+    },
+    {
+        "name": "browser_fill",
+        "description": "Preenche um campo de texto ou formulário.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "Nome do campo ou placeholder"},
+                "texto": {"type": "string", "description": "Texto para digitar"}
+            },
+            "required": ["selector", "texto"]
+        }
+    },
+    {
+        "name": "browser_close",
+        "description": "Fecha o navegador e encerra a sessão de automação.",
         "input_schema": {"type": "object", "properties": {}}
     },
     {
@@ -452,10 +511,31 @@ async def _run_tool(tool_name: str, args: dict, user_id=0, notifier_callback=Non
                 os.system("shutdown /a")
                 return "Shutdown cancelado."
 
+        elif tool_name == "buscar_arquivos":
+            from plugins.files.search import buscar_arquivo
+            query = args.get("query", "")
+            tipo = args.get("tipo")
+            resultado = buscar_arquivo(query, tipo=tipo)
+            return f"RESULTADOS DA BUSCA:\n{resultado}"
+
         elif tool_name == "executar_plugin":
             plugin_name = args.get("nome", "").strip()
             query = args.get("query")
             return _executar_plugin_local(plugin_name, query)
+        
+        elif tool_name.startswith("browser_"):
+            from utils.browser_manager import get_browser_manager
+            bm = await get_browser_manager()
+            if tool_name == "browser_goto":
+                return await bm.goto(args.get("url", ""))
+            elif tool_name == "browser_read":
+                return await bm.read_page()
+            elif tool_name == "browser_click":
+                return await bm.click(args.get("selector", ""))
+            elif tool_name == "browser_fill":
+                return await bm.fill(args.get("selector", ""), args.get("texto", ""))
+            elif tool_name == "browser_close":
+                return await bm.close()
         
         elif tool_name == "iniciar_criacao_comando":
             # Essa string servirá como Flag no loop do Claude para o Telegram agir!
@@ -1115,7 +1195,7 @@ async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat
         }
     except Exception as e:
         logger.error(f"Erro no fallback OpenAI: {e}")
-        return await _run_local_fallback(user_text, chat_history)
+        return await _run_local_fallback(user_text, chat_history, user_id=user_id, messages=messages, system_prompt=system_prompt, notifier_callback=notifier_callback)
 
 
 async def _ollama_modelo_disponivel() -> str | None:
@@ -1132,35 +1212,139 @@ async def _ollama_modelo_disponivel() -> str | None:
     return None
 
 
-async def _run_local_fallback(user_text, chat_history, notifier_callback=None) -> dict:
-    """Última linha de defesa: Resposta offline/local (Ollama ou Hardcoded)."""
-    logger.info("Iniciando Fallback Local (Offline)")
-    if notifier_callback:
-        await notifier_callback("🚨 Todas as APIs falharam. Entrando em Modo Offline de Segurança.")
+def _converter_tools_para_ollama(tools_anthropic: list) -> list:
+    """Converte o formato TOOLS (Anthropic) para o formato nativo do Ollama (OpenAI compatible)."""
+    ignoradas = {"buscar_web", "ler_url"} # Ferramentas que requerem internet não entram no modo offline
+    tools_ollama = []
+    
+    for t in tools_anthropic:
+        if t["name"] in ignoradas:
+            continue
+            
+        ollama_tool = {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t.get("input_schema", {})
+            }
+        }
+        tools_ollama.append(ollama_tool)
+        
+    return tools_ollama
+
+
+async def _run_local_fallback(user_text, chat_history, user_id=0, messages=None, system_prompt="", notifier_callback=None) -> dict:
+    """Última linha de defesa: Resposta offline/local (Ollama) usando chamadas de função (Agent Loop)."""
+    logger.info("Iniciando Fallback Local (Offline) com Tool Calling")
+    messages = messages or []
 
     modelo = await _ollama_modelo_disponivel()
 
     if not modelo:
+        import shutil
+        import asyncio
+        if shutil.which("ollama"):
+            msg_off = "🔌 Sem internet e Ollama não responde. Posso executar apenas comandos nativos do PC agora."
+        else:
+            if notifier_callback:
+                await notifier_callback("⚠️ Sistema offline e o Cérebro Local autônomo (Ollama) não está instalado. Iniciando instalação em background...")
+            asyncio.create_task(_instalar_ferramenta("ollama"))
+            msg_off = "⏳ Baixando e instalando sua IA local (Ollama) em background. Isso levará alguns minutos. Por enquanto, opero com comandos básicos listados no dicionário regex."
+            
+        return {"response": msg_off, "new_history": chat_history}
+
+    if notifier_callback:
+        await notifier_callback(f"🛡️ Desconectado da Matrix. Operando em contingência autônoma com `{modelo}`.")
+
+    tools_ollama = _converter_tools_para_ollama(TOOLS)
+    
+    # Prepara histórico de mensagens pro Ollama
+    ollama_msgs = [{"role": "system", "content": system_prompt + "\n[AVISO CRÍTICO: VOCÊ ESTÁ OFFLINE. USE AS FERRAMENTAS DISPONÍVEIS PARA CONCLUIR SUAS AÇÕES] "}]
+    for m in messages:
+        c = _normalizar_content_para_texto(m["content"]) if not isinstance(m["content"], list) else str(m["content"])
+        if c:
+            ollama_msgs.append({"role": m["role"], "content": c})
+
+    if not any(m.get("role") == "user" for m in ollama_msgs[-2:]):
+        ollama_msgs.append({"role": "user", "content": user_text})
+
+    import time
+    timeout_global = time.time() + 120  # 2 minutos corridos de limite
+    max_turns = 10
+    
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for turn in range(max_turns):
+                if time.time() > timeout_global:
+                    logger.warning("Timeout global do Ollama local atingido.")
+                    break
+                    
+                resp = await client.post("http://localhost:11434/api/chat", json={
+                    "model": modelo,
+                    "messages": ollama_msgs,
+                    "tools": tools_ollama,
+                    "stream": False,
+                })
+                
+                if resp.status_code != 200:
+                    logger.error("Erro na API de Chat do Ollama: %s", resp.text)
+                    return {"response": f"🔌 Falha local. O Ollama retornou código {resp.status_code}.", "new_history": chat_history}
+                    
+                data = resp.json().get("message", {})
+                content = data.get("content", "")
+                tool_calls = data.get("tool_calls", [])
+                
+                # Regex Fallback de Segurança caso modelos muito rasos (ex: 8b limitados) emitam tools JSON malformados como texto livre (alucinação)
+                if not tool_calls and content and "{" in content and "}" in content:
+                    import re
+                    m = re.search(r'\{(?:[^{}]*)\"name\"\s*:\s*\"([^\"]+)\"(?:[^{}]*)\}', content)
+                    if m:
+                        try:
+                            # Pega do primeiro '{' ao último '}'
+                            t_json = json.loads(content[content.find("{"):content.rfind("}")+1])
+                            if "name" in t_json:
+                                tool_calls = [{"function": {"name": t_json["name"], "arguments": t_json.get("arguments", {})}}]
+                        except Exception as e:
+                            logger.error("Falhou ao tentar extrair tool via RegEx fallback no Ollama: %s", e)
+
+                ollama_msgs.append(data)
+                
+                if not tool_calls:
+                    # Finalizou o pensamento ! Devolve resposta natural.
+                    chat_history.append({"role": "user", "content": user_text})
+                    chat_history.append({"role": "assistant", "content": content})
+                    return {"response": f"🤖 _(Modo Local — {modelo})_\n{content}", "new_history": chat_history[-20:]}
+                    
+                # Executa Tool Calls num loop reativo (Molt/OpenClaw concept)
+                for tu in tool_calls:
+                    func = tu.get("function", {})
+                    t_name = tu["function"]["name"] if tu.get("function") else tu.get("name")
+                    t_args = tu["function"].get("arguments", {}) if tu.get("function") else tu.get("arguments", {})
+                    
+                    if isinstance(t_args, str):
+                        try: 
+                            t_args = json.loads(t_args)
+                        except: 
+                            t_args = {}
+                        
+                    t_res = await _run_tool(t_name, t_args, user_id=user_id, notifier_callback=notifier_callback)
+                    
+                    ollama_msgs.append({
+                        "role": "tool",
+                        "content": t_res,
+                        "name": t_name
+                    })
+                    
+            return {
+                "response": "🤖 _(Modo Local)_ Concluí algumas tarefas offline, mas alcancei meu limite cognitivo com 10 interações seguidas.",
+                "new_history": chat_history
+            }
+            
+    except Exception as e:
+        logger.error("Ollama Tool Loop falhou fatalmente: %s", e, exc_info=True)
         return {
-            "response": "🔌 Sem conexão com APIs externas e Ollama offline. Posso executar apenas comandos básicos do PC agora.",
+            "response": f"🔌 Erro de orquestração offline: {e}. Executando apenas respostas básicas agora.",
             "new_history": chat_history,
         }
 
-    # Ollama disponível — usa o modelo encontrado
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post("http://localhost:11434/api/generate", json={
-                "model": modelo,
-                "prompt": f"O usuário disse: {user_text}\nResponda de forma curta como Orion (Modo Offline).",
-                "stream": False,
-            })
-            if resp.status_code == 200:
-                texto = resp.json().get("response", "").strip()
-                return {"response": f"🤖 _(Modo Local — {modelo})_ {texto}", "new_history": chat_history}
-    except Exception as e:
-        logger.error("Ollama falhou: %s", e)
-
-    return {
-        "response": "🔌 Desculpe, estou sem conexão e meu cérebro local não respondeu. Posso executar apenas comandos básicos do PC agora.",
-        "new_history": chat_history,
-    }
