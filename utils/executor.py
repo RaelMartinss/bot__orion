@@ -121,6 +121,31 @@ def executar_intent(intent: dict) -> str:
     if action == "set_alarm":
         return _criar_alarme(query, intent.get("message", "Lembrete!"))
 
+    if action == "email_inbox":
+        from plugins.email_manager import resumo_inbox
+        return resumo_inbox()
+
+    if action == "email_nao_lidos":
+        from plugins.email_manager import resumo_nao_lidos
+        return resumo_nao_lidos()
+
+    if action == "email_ler":
+        from plugins.email_manager import ler_mais_recente
+        return ler_mais_recente()
+
+    if action == "email_buscar":
+        from plugins.email_manager import resultado_busca
+        return resultado_busca(query or "")
+
+    if action == "email_enviar":
+        if not query:
+            return "❓ Informe o destinatário. Ex: _mande email para fulano@gmail.com_"
+        from plugins.email_manager import enviar_email
+        para = query.strip(" ,;")
+        assunto = intent.get("message") or "Mensagem do Orion"
+        corpo = intent.get("body") or assunto
+        return enviar_email(para, assunto, corpo)
+
     if action == "vision_on":
         from utils import vision
         return vision.iniciar()
@@ -183,6 +208,75 @@ def executar_intent(intent: dict) -> str:
     return "❓ Não entendi o comando."
 
 
+async def executar_manutencao(acao: str, permitir: bool = False) -> str:
+    """Implementa o self-healing do Orion."""
+    import shutil
+    import subprocess
+    import sys
+    
+    if acao == "verificar_saude":
+        report = ["🏥 **Relatório de Saúde Orion**", ""]
+        
+        # 1. Internet
+        import socket
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            report.append("✅ Conexão com Internet: Ativa")
+        except Exception:
+            report.append("❌ Conexão com Internet: Indisponível")
+            
+        # 2. Ollama
+        if shutil.which("ollama"):
+            report.append("✅ Conexão Local (Ollama): Instalado")
+        else:
+            report.append("❌ Conexão Local (Ollama): Faltando (Use 'instalar_ollama')")
+            
+        # 3. YT-DLP
+        if shutil.which("yt-dlp"):
+            report.append("✅ Mídia (yt-dlp): Pronto")
+        else:
+            report.append("⚠️ Mídia (yt-dlp): Faltando")
+            
+        return "\n".join(report)
+
+    if acao == "instalar_ollama":
+        if not permitir:
+            return "Ollma detectado como faltando. Gostaria que eu realizasse o download e a instalação silenciosa? (Confirme 'Sim')"
+            
+        if shutil.which("ollama"):
+            return "Ollama já está instalado no sistema."
+            
+        try:
+            # Instalação Totalmente Via Terminal (Conforme sugerido: irm | iex)
+            cmd = "powershell -Command \"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://ollama.com/install.ps1 | iex\""
+            
+            # Executa de forma detached para não travar o bot mas logar o resultado
+            subprocess.Popen(cmd, shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+            
+            return "🚀 Comando de instalação enviado ao PowerShell. O Ollama será instalado em segundo plano sem necessidade de interação. Após as janelas fecharem, reinicie o Orion."
+        except Exception as e:
+            return f"❌ Erro ao disparar instalação do Ollama: {e}"
+
+    if acao == "configurar_cerebro_local":
+        if not shutil.which("ollama"):
+            return "Erro: Ollama não instalado. Instale-o primeiro."
+        
+        try:
+            process = subprocess.Popen(["ollama", "pull", "mistral"], creationflags=subprocess.CREATE_NEW_CONSOLE)
+            return "🧠 Iniciando download do modelo Mistral em nova janela. Isso pode demorar alguns minutos dependendo da sua internet."
+        except Exception as e:
+            return f"❌ Erro ao configurar cérebro local: {e}"
+
+    if acao == "instalar_yt_dlp":
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "yt-dlp"])
+            return "✅ yt-dlp instalado com sucesso."
+        except Exception as e:
+            return f"❌ Erro ao instalar yt-dlp: {e}"
+
+    return "Ação de manutenção desconhecida."
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _primeiro_video_youtube(query: str) -> tuple[str, str]:
@@ -223,7 +317,17 @@ def _abrir_app_conhecido(nome: str) -> str | None:
     if not cmd:
         return None
     try:
-        subprocess.Popen(cmd, shell=True, creationflags=subprocess.DETACHED_PROCESS)
+        if cmd.startswith("__browser__"):
+            # Abre browser via webbrowser (funciona independente do PATH)
+            browser_name = cmd.replace("__browser__", "").strip() or None
+            if browser_name:
+                webbrowser.get(browser_name).open("https://www.google.com")
+            else:
+                webbrowser.open("https://www.google.com")
+        elif ":" in cmd and not cmd.startswith(("cmd", "powershell", "python")):
+            os.startfile(cmd)
+        else:
+            subprocess.Popen(cmd, shell=True, creationflags=subprocess.DETACHED_PROCESS)
         return f"💻 Abrindo *{chave}*..."
     except Exception as e:
         logger.error(f"Erro ao abrir app {chave}: {e}")

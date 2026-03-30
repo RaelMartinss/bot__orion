@@ -52,6 +52,12 @@ PROTOCOLO DE RESILIÊNCIA (CRÍTICO):
 8. EFICIÊNCIA: Você tem turnos limitados. Não desperdice turnos listando arquivos quando já sabe o que fazer.
 9. DATA/HORA: Use a data/hora injetada no prompt abaixo para responder sobre 'hoje', 'amanhã', etc.
 
+PROTOCOLO DE AUTONOMIA (JARVIS):
+- CAPACIDADES: Quando o usuário perguntar "o que você sabe fazer?", "quais são suas capacidades?" ou similar → chame `verificar_saude_sistema` primeiro, depois responda com base no resultado real.
+- SELF-HEALING: Se um comando falhar porque falta um programa, use `verificar_saude_sistema` para confirmar, depois ofereça instalar via `instalar_ferramenta`. Peça confirmação antes de instalar.
+- PÓS-INSTALL: Após instalar ollama, informe que "consciência local está ativa" e que pode rodar modelos sem internet.
+- PROATIVIDADE: Se `verificar_saude_sistema` retornar [PODE_INSTALAR: ...], mencione proativamente que pode evoluir o sistema.
+
 ESTRUTURA: Use a pasta `plugins/` para todas as extensões. Nunca cite 'modulos/'.
 """
 
@@ -221,6 +227,36 @@ TOOLS = [
         }
     },
     {
+        "name": "verificar_saude_sistema",
+        "description": (
+            "Verifica o que o Orion consegue e não consegue fazer no PC atual. "
+            "Inspeciona ferramentas instaladas (Ollama, ffmpeg, yt-dlp, Steam, etc.), "
+            "versões Python, plugins disponíveis, e detecta dependências úteis faltando. "
+            "Use quando o usuário perguntar 'o que você sabe fazer?', 'quais são suas capacidades?' "
+            "ou quando você precisar saber se uma ferramenta está disponível antes de usá-la."
+        ),
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "instalar_ferramenta",
+        "description": (
+            "Instala silenciosamente uma ferramenta que o Orion detectou como faltando. "
+            "Use SOMENTE após o usuário confirmar que quer instalar. "
+            "Ferramentas suportadas: ollama, ffmpeg, yt-dlp, chocolatey."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ferramenta": {
+                    "type": "string",
+                    "enum": ["ollama", "ffmpeg", "yt-dlp", "chocolatey"],
+                    "description": "Nome da ferramenta a instalar"
+                }
+            },
+            "required": ["ferramenta"]
+        }
+    },
+    {
         "name": "enviar_mensagem_imediata",
         "description": "Envia um texto ou resposta por voz IMEDIATAMENTE ao usuário (Telegram/Mic) enquanto você continua processando outras ferramentas em background. Use para evitar timeouts e silêncios longos.",
         "input_schema": {
@@ -229,6 +265,18 @@ TOOLS = [
                 "mensagem": {"type": "string", "description": "O conteúdo da resposta para o usuário (voz/texto)"}
             },
             "required": ["mensagem"]
+        }
+    },
+    {
+        "name": "manutencao_sistema",
+        "description": "Ferramenta de auto-manutenção do Orion. Verifica saúde, instala componentes faltantes (como Ollama) e configura o cérebro local.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "acao": {"type": "string", "enum": ["verificar_saude", "instalar_ollama", "configurar_cerebro_local", "instalar_yt_dlp"]},
+                "permitir_downloads": {"type": "boolean", "description": "Se verdadeiro, inicia o download/instalação imediatamente."}
+            },
+            "required": ["acao"]
         }
     }
 ]
@@ -469,6 +517,12 @@ async def _run_tool(tool_name: str, args: dict, user_id=0, notifier_callback=Non
             except Exception as e:
                 return f"Erro ao ler URL: {e}"
                 
+        elif tool_name == "verificar_saude_sistema":
+            return _verificar_saude_sistema()
+
+        elif tool_name == "instalar_ferramenta":
+            return await _instalar_ferramenta(args.get("ferramenta", ""))
+
         elif tool_name == "atualizar_memoria":
             f = args.get("fato", "")
             if f:
@@ -517,6 +571,12 @@ async def _run_tool(tool_name: str, args: dict, user_id=0, notifier_callback=Non
                 await notifier_callback(msg)
                 return f"Sucesso: Mensagem enviada ao usuário: {msg[:50]}..."
             return "Erro: Callback de notificação não disponível nesta sessão."
+            
+        elif tool_name == "manutencao_sistema":
+            acao = args.get("acao")
+            permitir = args.get("permitir_downloads", False)
+            from utils.executor import executar_manutencao
+            return await executar_manutencao(acao, permitir)
             
     except Exception as e:
         logger.error(f"Erro na tool {tool_name}: {e}")
@@ -586,6 +646,147 @@ async def _post_with_backoff(client: httpx.AsyncClient, headers: dict, payload: 
         await asyncio.sleep(wait_seconds)
 
     return None
+
+
+def _verificar_saude_sistema() -> str:
+    """Inspeciona ferramentas instaladas e retorna relatório de capacidades."""
+    import shutil
+    import sys
+
+    # Ferramentas de linha de comando
+    # Ollama: verifica pelo servidor HTTP, não pelo PATH
+    import urllib.request as _ur
+    ollama_online = False
+    ollama_modelos = []
+    try:
+        with _ur.urlopen("http://localhost:11434/api/tags", timeout=3) as _r:
+            _data = json.loads(_r.read())
+            ollama_modelos = [m["name"] for m in _data.get("models", [])]
+            ollama_online = True
+    except Exception:
+        pass
+
+    if ollama_online:
+        presentes.append(f"✅ ollama — IA local (modelos: {', '.join(ollama_modelos) or 'nenhum'})")
+    else:
+        faltando.append("❌ ollama — IA local (LLMs sem internet) ⬇️ (posso instalar)")
+
+    ferramentas = {
+        "ffmpeg":    ("ffmpeg", "conversão de áudio/vídeo"),
+        "yt-dlp":   ("yt-dlp", "download de vídeos YouTube"),
+        "chocolatey": ("choco", "gerenciador de pacotes Windows"),
+        "git":       ("git",   "controle de versão"),
+        "node":      ("node",  "runtime JavaScript/Node.js"),
+        "npm":       ("npm",   "gerenciador de pacotes Node"),
+    }
+
+    presentes = []
+    faltando = []
+    instalavel = ["ollama", "ffmpeg", "yt-dlp", "chocolatey"]
+
+    for nome, (cmd, descricao) in ferramentas.items():
+        if shutil.which(cmd):
+            presentes.append(f"✅ {nome} — {descricao}")
+        else:
+            marker = " ⬇️ (posso instalar)" if nome in instalavel else ""
+            faltando.append(f"❌ {nome} — {descricao}{marker}")
+
+    # Python e pacotes-chave
+    py_version = sys.version.split()[0]
+    pacotes_chave = ["anthropic", "httpx", "faster_whisper", "pycaw", "edge_tts", "yt_dlp"]
+    pacotes_status = []
+    for pkg in pacotes_chave:
+        try:
+            __import__(pkg.replace("-", "_"))
+            pacotes_status.append(f"✅ {pkg}")
+        except ImportError:
+            pacotes_status.append(f"❌ {pkg}")
+
+    # Plugins disponíveis
+    plugins = [f for f in os.listdir(_PLUGINS_DIR) if f.endswith(".py")] if os.path.isdir(_PLUGINS_DIR) else []
+
+    linhas = [
+        f"🖥️ Python {py_version}",
+        "",
+        "**Ferramentas do sistema:**",
+        *presentes,
+        *faltando,
+        "",
+        "**Pacotes Python:**",
+        *pacotes_status,
+        "",
+        f"**Plugins ativos:** {len(plugins)} ({', '.join(p.replace('.py','') for p in plugins) or 'nenhum'})",
+    ]
+
+    # Flag especial para o Claude saber o que pode oferecer instalar
+    instalavel_faltando = [n for n in instalavel if not shutil.which({"yt-dlp": "yt-dlp", "chocolatey": "choco"}.get(n, n))]
+    if instalavel_faltando:
+        linhas.append(f"\n[PODE_INSTALAR: {', '.join(instalavel_faltando)}]")
+
+    return "\n".join(linhas)
+
+
+_INSTALL_CMDS: dict[str, list[str]] = {
+    "chocolatey": [
+        'powershell -NoProfile -ExecutionPolicy Bypass -Command '
+        '"Set-ExecutionPolicy Bypass -Scope Process -Force; '
+        '[System.Net.ServicePointManager]::SecurityProtocol = 3072; '
+        'iex ((New-Object System.Net.WebClient).DownloadString(\'https://community.chocolatey.org/install.ps1\'))"'
+    ],
+    "ollama": ["winget install --id Ollama.Ollama -e --silent"],
+    "ffmpeg": ["choco install ffmpeg -y --no-progress"],
+    "yt-dlp": ["pip install -q yt-dlp"],
+}
+
+_POST_INSTALL: dict[str, list[str]] = {
+    "ollama": ["ollama pull mistral"],
+}
+
+
+async def _instalar_ferramenta(ferramenta: str) -> str:
+    """Instala silenciosamente uma ferramenta e executa pós-install se definido."""
+    if not ferramenta:
+        return "Erro: ferramenta não especificada."
+
+    cmds = _INSTALL_CMDS.get(ferramenta)
+    if not cmds:
+        return f"Ferramenta '{ferramenta}' não tem receita de instalação."
+
+    resultados = []
+    for cmd in cmds:
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            saida = stdout.decode(errors="replace").strip()
+            erro = stderr.decode(errors="replace").strip()
+            if proc.returncode == 0:
+                resultados.append(f"✅ OK: {cmd[:60]}")
+            else:
+                resultados.append(f"⚠️ código {proc.returncode}: {erro[-200:]}")
+        except asyncio.TimeoutError:
+            resultados.append(f"⏳ {cmd[:60]} — instalando em background (timeout 5min).")
+        except Exception as e:
+            resultados.append(f"❌ Erro: {e}")
+
+    # Pós-install (ex: ollama pull mistral)
+    pos = _POST_INSTALL.get(ferramenta, [])
+    for cmd in pos:
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=300)
+            resultados.append(f"✅ pós-install: {cmd}")
+        except Exception as e:
+            resultados.append(f"⚠️ pós-install falhou: {e}")
+
+    return f"Instalação de '{ferramenta}':\n" + "\n".join(resultados)
 
 
 def _executar_plugin_local(plugin_name: str, query: str | None = None) -> str:
@@ -797,8 +998,11 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
                         response.status_code,
                         response.text[:300],
                     )
+                    # 400 com "credit balance" = saldo zerado, não instabilidade
+                    sem_credito = response.status_code == 400 and "credit balance" in response.text
                     return await _run_openai_fallback(
-                        user_id, user_text, messages, prompt_personalizado, chat_history, notifier_callback
+                        user_id, user_text, messages, prompt_personalizado, chat_history, notifier_callback,
+                        silencioso=sem_credito,
                     )
 
                 data = response.json()
@@ -873,10 +1077,10 @@ async def _run_orchestrator_locked(user_text: str, chat_history: list, user_id: 
         return {"response": f"Erro interno (Orchestrator): {e}", "wants_to_learn": False, "games_listed": [], "new_history": chat_history}
 
 
-async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat_history, notifier_callback) -> dict:
+async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat_history, notifier_callback, silencioso: bool = False) -> dict:
     """Fallback para OpenAI (GPT-4o-mini) se a Anthropic falhar."""
     logger.info(f"Iniciando Fallback OpenAI para user_id={user_id}")
-    if notifier_callback:
+    if notifier_callback and not silencioso:
         await notifier_callback("⚠️ Conexão instável com meu núcleo Anthropic. Ativando consciência secundária (OpenAI)...")
     
     from utils.openai_client import get_client
@@ -914,28 +1118,49 @@ async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat
         return await _run_local_fallback(user_text, chat_history)
 
 
+async def _ollama_modelo_disponivel() -> str | None:
+    """Retorna o nome do primeiro modelo disponível no Ollama, ou None se offline."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("http://localhost:11434/api/tags")
+            if resp.status_code == 200:
+                models = resp.json().get("models", [])
+                if models:
+                    return models[0]["name"]
+    except Exception:
+        pass
+    return None
+
+
 async def _run_local_fallback(user_text, chat_history, notifier_callback=None) -> dict:
     """Última linha de defesa: Resposta offline/local (Ollama ou Hardcoded)."""
     logger.info("Iniciando Fallback Local (Offline)")
     if notifier_callback:
         await notifier_callback("🚨 Todas as APIs falharam. Entrando em Modo Offline de Segurança.")
-    
-    # Tenta Ollama via HTTP local
+
+    modelo = await _ollama_modelo_disponivel()
+
+    if not modelo:
+        return {
+            "response": "🔌 Sem conexão com APIs externas e Ollama offline. Posso executar apenas comandos básicos do PC agora.",
+            "new_history": chat_history,
+        }
+
+    # Ollama disponível — usa o modelo encontrado
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post("http://localhost:11434/api/generate", json={
-                "model": "mistral",
+                "model": modelo,
                 "prompt": f"O usuário disse: {user_text}\nResponda de forma curta como Orion (Modo Offline).",
-                "stream": False
+                "stream": False,
             })
             if resp.status_code == 200:
-                texto = resp.json().get("response")
-                return {"response": f"🤖 (Modo Local) {texto}", "new_history": chat_history}
-    except Exception:
-        pass
+                texto = resp.json().get("response", "").strip()
+                return {"response": f"🤖 _(Modo Local — {modelo})_ {texto}", "new_history": chat_history}
+    except Exception as e:
+        logger.error("Ollama falhou: %s", e)
 
-    # Fallback final: Hardcoded
     return {
-        "response": "🔌 Desculpe, estou sem conexão e meu cérebro local (Ollama) não respondeu. Posso executar apenas comandos básicos do PC agora.",
-        "new_history": chat_history
+        "response": "🔌 Desculpe, estou sem conexão e meu cérebro local não respondeu. Posso executar apenas comandos básicos do PC agora.",
+        "new_history": chat_history,
     }

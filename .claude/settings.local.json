@@ -13,7 +13,8 @@
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npx --yes create-vite@latest travel --template react && cd travel && npm install\")",
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop && npm create --yes vite@5 travel -- --template react && cd travel && npm install\")",
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop\\\\travel && npm install\")",
-      "Bash(uv pip:*)"
+      "Bash(uv pip:*)",
+      "Bash(uv run python -c \":*)"
     ]
   }
 }

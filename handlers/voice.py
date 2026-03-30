@@ -79,7 +79,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Guard aplicado antes do ML e do Claude: evita rodar modelos em texto claramente conversacional
         _parece_comando = len(texto_para_ia) >= 6 and not re.match(
             r'^(ok|sim|não|nao|tudo bem|oi|olá|ola|ei|e aí|eai|valeu|obrigad|certo|entendi|legal|show|'
-            r'bom dia|boa tarde|boa noite|boa|bom|tudo|como vai|obrigado|obrigada)\b',
+            r'bom dia|boa tarde|boa noite|boa|bom|tudo|como vai|obrigado|obrigada|opa|hey|ae|aeee|eae|'
+            r'blz|beleza|opa|falou|tmj|vlw)\b',
             texto_para_ia.lower()
         )
         if intent.get("action") == "desconhecido" and _parece_comando:

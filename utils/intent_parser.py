@@ -19,7 +19,7 @@ _APP_SEMANTICOS: dict[str, str] = {
     r'\b(programar|codar|codificar|desenvolvimento|desenvolver)\b': 'vscode',
 }
 
-_OPEN_VERBS = r'\b(abra|abre|abrir|iniciar|inicia|open)\b'
+_OPEN_VERBS = r'\b(abra|abre|abrir|abri|iniciar|inicia|open)\b'
 
 _MUSIC_VERBS = r'\b(toca|tocar|play|ouvir|coloca|colocar|reproduz|reproduzir|bota|botar|põe|escuta|escutar)\b'
 _MUSIC_NOUNS = r'\b(música|musica|song|faixa|banda|artista|álbum|album|spotify)\b'
@@ -75,10 +75,8 @@ def parse_intent(texto: str) -> dict:
     if _match(t, r'\b(muta|mutar|mute|silencia|silenciar|silêncio|silencio|cala|calar)\b'):
         return {"action": "mute", "query": None, "delay": None}
 
-    # "coloca volume em 75" / "volume para 75" / "define volume 75" → vol_set
-    if _match(t, r'\b(volume|som)\b') and \
-       _match(t, r'\b(para|em|a|define|definir|coloca|colocar|set|bota|botar)\b') and \
-       _num(t) is not None:
+    # "volume 60" / "volume 60%" / "coloca volume em 75" / "volume para 75"
+    if _match(t, r'\b(volume|som)\b') and _num(t) is not None:
         return {"action": "vol_set", "query": str(_num(t)), "delay": None}
 
     if _match(t, r'(aumenta|aumentar|sobe|subir|mais|up).{0,15}(volume|som|áudio|audio)'
@@ -112,6 +110,35 @@ def parse_intent(texto: str) -> dict:
         return {"action": "anterior", "query": None, "delay": None}
 
     # ── Alarme ───────────────────────────────────────────────────────────────
+    # ── E-mail ────────────────────────────────────────────────────────────────
+    if _match(t, r'\b(email|e-mail|emails|gmail|caixa de entrada|inbox|correio eletrônico|correio eletronico)\b'):
+        # Enviar — tem prioridade máxima (checar primeiro)
+        if _match(t, r'\b(manda|mande|mandar|envia|envie|enviar|escreve|escreva|escrever|compõe|compose|send)\b'):
+            para_m = re.search(r'\b(?:para|pra|pro)\s+(\S+@\S+)', t)
+            assunto_m = re.search(r'\b(?:assunto|subject)\s+(.+?)(?:,|\.|corpo|$)', t)
+            corpo_m = re.search(r'\b(?:corpo|body|conteudo|conteúdo|texto|mensagem)\s+(?:do email\s+|de\s+)?(.+)$', t)
+            return {
+                "action": "email_enviar",
+                "query": para_m.group(1) if para_m else None,
+                "message": assunto_m.group(1).strip() if assunto_m else None,
+                "body": corpo_m.group(1).strip() if corpo_m else None,
+                "delay": None,
+            }
+        # Buscar
+        if _match(t, r'\b(busca|buscar|procura|procurar|acha|achar|encontra|encontrar)\b'):
+            q = _query(t, ['busca', 'buscar', 'procura', 'procurar', 'acha', 'encontra',
+                           'email', 'e-mail', 'gmail', 'o email', 'um email'])
+            return {"action": "email_buscar", "query": q, "delay": None}
+        # Não-lidos — exige "não lido" explícito, não apenas "novo"
+        if _match(t, r'\b(não lido|nao lido|unread|não lidos|nao lidos)\b') or \
+           re.search(r'\b(tem|novo|novos)\b.{0,10}\bemail', t):
+            return {"action": "email_nao_lidos", "query": None, "delay": None}
+        # Ler o mais recente
+        if _match(t, r'\b(ler|lê|le|abre|abrir|mostra|ver|vê|último|ultimo|recente)\b'):
+            return {"action": "email_ler", "query": None, "delay": None}
+        # Resumo geral
+        return {"action": "email_inbox", "query": None, "delay": None}
+
     if _match(t, r'\b(alarme|lembra|lembrete|avisa|notifica|acorda)\b'):
         horario = _hora(t)
         if horario:
