@@ -22,6 +22,10 @@ rad.json
 TestResults.xml
 #Env
 .env
+credentials.json
+memoria/google_token.json
+plugins/gmail_reader.py
 #logging
 *.log
+orion.log
 

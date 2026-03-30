@@ -121,6 +121,24 @@ def executar_intent(intent: dict) -> str:
     if action == "set_alarm":
         return _criar_alarme(query, intent.get("message", "Lembrete!"))
 
+    if action == "agenda_hoje":
+        from plugins.agenda import resumo_hoje
+        return resumo_hoje()
+
+    if action == "agenda_semana":
+        from plugins.agenda import resumo_semana
+        return resumo_semana()
+
+    if action == "agenda_proximo":
+        from plugins.agenda import resumo_proximo
+        return resumo_proximo()
+
+    if action == "agenda_criar":
+        from plugins.agenda import criar_evento
+        horario = intent.get("time") or "09:00"
+        titulo = query or "Compromisso"
+        return criar_evento(titulo, horario)
+
     if action == "email_inbox":
         from plugins.email_manager import resumo_inbox
         return resumo_inbox()

@@ -110,6 +110,31 @@ def parse_intent(texto: str) -> dict:
         return {"action": "anterior", "query": None, "delay": None}
 
     # ── Alarme ───────────────────────────────────────────────────────────────
+    # ── Agenda / Calendário ───────────────────────────────────────────────────
+    if _match(t, r'\b(agenda|calendário|calendario|compromisso|compromissos|reunião|reuniao|evento|eventos)\b') or \
+       _match(t, r'\b(o que (tenho|tem) (hoje|amanhã|amanha|essa semana))\b'):
+
+        # Criar evento: "cria evento X às HH:MM" — exige verbo explícito de criação
+        if _match(t, r'\b(cria|criar|adiciona|adicionar|marca|marcar|agendar|coloca|colocar)\b'):
+            horario = _hora(t)
+            titulo_m = re.search(
+                r'\b(?:evento|reunião|reuniao|compromisso|lembrete)?\s*["\']?([a-záéíóúãõç\w\s-]{3,40})["\']?\s+(?:às|as|para|pra)\b',
+                t
+            )
+            titulo = titulo_m.group(1).strip() if titulo_m else "Compromisso"
+            return {"action": "agenda_criar", "query": titulo, "time": horario, "delay": None}
+
+        # Semana
+        if _match(t, r'\b(semana|próximos dias|proximos dias|essa semana)\b'):
+            return {"action": "agenda_semana", "query": None, "delay": None}
+
+        # Próximo evento
+        if _match(t, r'\b(próximo|proximo|seguinte)\b'):
+            return {"action": "agenda_proximo", "query": None, "delay": None}
+
+        # Hoje (default)
+        return {"action": "agenda_hoje", "query": None, "delay": None}
+
     # ── E-mail ────────────────────────────────────────────────────────────────
     if _match(t, r'\b(email|e-mail|emails|gmail|caixa de entrada|inbox|correio eletrônico|correio eletronico)\b'):
         # Enviar — tem prioridade máxima (checar primeiro)
