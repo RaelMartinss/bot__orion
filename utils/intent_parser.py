@@ -93,28 +93,55 @@ def parse_intent(texto: str) -> dict:
         pct = _num(t)
         return {"action": "vol_down", "query": str(pct) if pct else None, "delay": None}
 
+    # ── Controle do Navegador (antes dos padrões web genéricos) ─────────────
+    if _match(t, r'\b(fecha|fechar|fecha\s+o|close)\b.{0,15}\b(navegador|browser|chrome|firefox|edge)\b'
+                 r'|\b(navegador|browser|chrome|firefox|edge)\b.{0,10}\b(fecha|fechar|close)\b'):
+        return {"action": "browser_fechar", "query": None, "delay": None}
+
+    if _match(t, r'\b(abr[ae]|abrir|abre\s+o)\b.{0,10}\b(navegador|browser|chrome|firefox|edge)\b'
+                 r'|\b(navegador|browser|chrome|firefox|edge)\b.{0,10}\b(abr[ae]|abrir)\b'):
+        return {"action": "browser_abrir", "query": None, "delay": None}
+
     # ── Controle de reprodução ────────────────────────────────────────────────
     # Verificar ANTES dos verbos de música para "pausa" não virar Spotify
     # "play" sozinho (sem nome de música após) = toggle pause
     _play_sozinho = _match(t, r'^play\s*$') or \
                     (_match(t, r'\bplay\b') and not _match(t, r'\bplay\s+\w{3,}'))
 
+    # Reiniciar vídeo (antes do pausa para capturar "reinicia" antes do genérico)
+    if _match(t, r'\b(reinicia|reiniciar|recomeça|recomeçar|volta ao início|volta pro início|restart)\b'
+                 r'.{0,20}\b(video|vídeo|youtube|browser|navegador)\b'):
+        return {"action": "reiniciar_video", "query": None, "delay": None}
+
+    # Pausa/play no browser — capturado ANTES do _WEB_PATTERNS para não ir ao orchestrator
+    if _match(t, r'\b(pausa|pausar|pause|continua|continuar|play)\b.{0,30}\b(browser|navegador|chrome|firefox)\b'
+                 r'|\b(browser|navegador)\b.{0,20}\b(pausa|pausar|play|continua)\b'):
+        return {"action": "pausar", "query": None, "delay": None}
+
     if _match(t, r'\b(pausa|pausar|pause|para a música|para o video|para o vídeo|'
                  r'continua|continuar|retoma|retomar|resume|resumir)\b') \
             or _play_sozinho:
-        if not _match(t, r'\b(spotify|youtube|netflix|jogo)\b'):
+        if not _match(t, r'\b(spotify|netflix|jogo)\b'):
             return {"action": "pausar", "query": None, "delay": None}
 
+    # Próximo/anterior — youtube é válido aqui (ctrl_proxima usa Shift+N no YouTube)
     if _match(t, r'\b(próxima|proxima|próximo|proximo|next|pular|avança|avançar)\b') \
-            and not _match(t, r'\b(spotify|youtube|netflix|jogo)\b'):
+            and not _match(t, r'\b(spotify|netflix|jogo)\b'):
         return {"action": "proxima", "query": None, "delay": None}
 
     if _match(t, r'\b(anterior|volta|voltar|prev|previous|retrocede)\b') \
-            and not _match(t, r'\b(spotify|youtube|netflix|jogo|desligar|cancelar)\b'):
+            and not _match(t, r'\b(spotify|netflix|jogo|desligar|cancelar)\b'):
         return {"action": "anterior", "query": None, "delay": None}
 
     # ── Navegador / Automação Web ────────────────────────────────────────────
-    if _match(t, r'\b(site|web|internet|navegador|browser|pesquisa|pesquisar|google)\b'):
+    # Padrões explícitos de navegação web — detectados ANTES dos jogos
+    _WEB_PATTERNS = (
+        r'\b(site|web|internet|pesquisa|pesquisar|google)\b'
+        r'|\b(abr[ae]|abrir)\b.{0,20}\b(site|página|pagina|url|link)\b'
+        r'|\b(acessa|acessar|entra em|entrar em|vai em|vá em)\b'
+        r'|\b\.com\b|\b\.com\.br\b|\bhttps?://\b'
+    )
+    if _match(t, _WEB_PATTERNS):
         return {"action": "desconhecido", "query": t, "delay": None}
 
     # ── Alarme ───────────────────────────────────────────────────────────────
@@ -171,6 +198,77 @@ def parse_intent(texto: str) -> dict:
             return {"action": "email_ler", "query": None, "delay": None}
         # Resumo geral
         return {"action": "email_inbox", "query": None, "delay": None}
+
+    # ── WhatsApp — status/QR ANTES do enviar (ordem importa!) ───────────────
+    if _match(t, r'\b(status|estado|conectado)\b.{0,15}\b(whatsapp|wpp|zap)\b'
+                 r'|\b(whatsapp|wpp|zap)\b.{0,15}\b(status|conectado|online)\b'):
+        return {"action": "whatsapp_status", "query": None, "delay": None}
+
+    if _match(t, r'\b(qr|qr.?code)\b.{0,15}\b(whatsapp|wpp|zap)\b'
+                 r'|\b(whatsapp|wpp|zap)\b.{0,15}\b(qr|qr.?code|conectar|conecta)\b'
+                 r'|\b(conecta|conectar|liga|ligar)\b.{0,15}\b(whatsapp|wpp|zap)\b'):
+        return {"action": "whatsapp_qr", "query": None, "delay": None}
+
+    # ── WhatsApp — enviar mensagem ────────────────────────────────────────────
+    if _match(t, r'\b(whatsapp|wpp|zap|zap zap)\b') or \
+       _match(t, r'\b(manda|mande|mandar|envia|envie|enviar|fala|avisa)\b.{0,30}'
+                r'\b(mensagem|msg|recado|texto)\b.{0,20}\b(pro|para|pra|ao)\b') or \
+       _match(t, r'\b(manda|mande|avisa|fala)\b.{0,10}\b(pro|pra|para|ao)\b.{0,30}'
+                r'\b(whatsapp|wpp|zap|mensagem|msg)\b'):
+        # Extrai destinatário com vários delimitadores:
+        # 1. "pra Amor que/dizendo/falando ..."
+        dest_m = re.search(
+            r'\b(?:pro|pra|para|ao|à)\s+(.+?)\s+(?:que|dizendo|falando)\b',
+            t
+        )
+        # 2. "pra Junior, mensagem" (vírgula como delimitador)
+        if not dest_m:
+            dest_m = re.search(
+                r'\b(?:pro|pra|para|ao|à)\s+([^,\d]+?)\s*,',
+                t
+            )
+
+        # Mensagem: tudo após "que/dizendo/falando"
+        msg_m = re.search(r'\b(?:que|dizendo|falando)\s+(.+)$', t)
+        # Fallback: tudo após a vírgula
+        if not msg_m:
+            comma_m = re.search(r',\s*(.+)$', t)
+            if comma_m:
+                msg_m = comma_m
+
+        # Número de telefone com contexto explícito: "número do amor 5511999999999"
+        phone_m = re.search(
+            r'\b(?:n[uú]mero\s+(?:d[eo]\s+\w+\s+)?|tel(?:efone)?[.:\s]+)(\d{10,15})\b',
+            t
+        )
+
+        # Extrai nome associado ao número: "número do amor"
+        phone_name_m = re.search(
+            r'\bn[uú]mero\s+d[eo]\s+(\w+)', t
+        )
+
+        dest = dest_m.group(1).strip() if dest_m else None
+        msg = msg_m.group(1).strip() if msg_m else None
+
+        # Limpa número e referência de número da mensagem
+        if msg and phone_m:
+            msg = re.sub(r'\s*n[uú]mero\s+(?:d[eo]\s+\w+\s+)?\d+', '', msg).strip()
+            msg = re.sub(r'\s*\d{10,15}', '', msg).strip()
+
+        return {
+            "action": "whatsapp_enviar",
+            "query": dest,
+            "message": msg or None,
+            "phone": phone_m.group(1) if phone_m else None,
+            "phone_name": phone_name_m.group(1) if phone_name_m else dest,
+            "delay": None,
+        }
+
+    # ── Presença por pendrive ────────────────────────────────────────────────
+    if _match(t, r'\b(configura|configurar|define|definir|registra|registrar)\b.{0,20}'
+                 r'\b(pendrive|usb|presença|presenca|token)\b'
+                 r'|\b(pendrive|usb)\b.{0,20}\b(presença|presenca|configurar|registrar)\b'):
+        return {"action": "configurar_pendrive", "query": None, "delay": None}
 
     if _match(t, r'\b(alarme|lembra|lembrete|avisa|notifica|acorda)\b'):
         horario = _hora(t)

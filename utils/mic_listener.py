@@ -75,12 +75,14 @@ def _loop_mic():
         return
 
     try:
-        import webrtcvad
-        vad = webrtcvad.Vad(2)
-        logger.info("🎙️ WebRTC VAD ativo para detecção de fala.")
-    except ImportError:
+        from silero_vad import load_silero_vad, get_speech_timestamps
+        import torch
+        _silero_model = load_silero_vad()
+        vad = ("silero", _silero_model)
+        logger.info("🎙️ Silero VAD ativo.")
+    except Exception as e:
         vad = None
-        logger.warning("webrtcvad não disponível. Usando fallback por RMS no microfone.")
+        logger.debug("Silero VAD não disponível (%s). Usando fallback por RMS.", e)
 
     from utils.transcriber import transcrever_numpy
     from utils.intent_parser import parse_intent
@@ -115,10 +117,33 @@ def _loop_mic():
         interface_bridge.emit_state_sync("ouvindo", f"Comando detectado: {comando[:120]}")
 
         intent = parse_intent(comando)
-        if intent.get("action") == "desconhecido":
+
+        _parece_comando = len(comando) >= 6
+        _BROWSER_RE = (
+            r'\b(site|web|internet|pesquisa|pesquisar|google)\b'
+            r'|\b(abr[ae]|abrir)\b.{0,20}\b(site|página|pagina|url|link)\b'
+            r'|\b(acessa|acessar|entra em|entrar em|vai em|vá em)\b'
+            r'|\.com\b|\.com\.br\b|https?://'
+        )
+        import re as _re
+        _parece_browser = bool(_re.search(_BROWSER_RE, comando.lower()))
+
+        if intent.get("action") == "desconhecido" and _parece_comando and not _parece_browser:
             ml_intent = interpretar_comando(comando)
             if ml_intent:
                 intent = ml_intent
+
+        if intent.get("action") == "desconhecido" and _parece_comando and not _parece_browser:
+            from utils.claude_client import extrair_intent_estruturado
+            import asyncio as _asyncio
+            try:
+                structured = _asyncio.run_coroutine_threadsafe(
+                    extrair_intent_estruturado(comando), _loop
+                ).result(timeout=5)
+                if structured and structured.get("action") not in ("desconhecido", "conversa", None):
+                    intent = structured
+            except Exception:
+                pass
 
         if intent.get("action") != "desconhecido":
             resultado = executar_intent(intent)
@@ -265,14 +290,16 @@ def _normalizar_wake_token(token: str) -> str:
 
 
 def _bloco_tem_fala(bloco: np.ndarray, vad) -> bool:
-    """Decide se o bloco contém fala usando WebRTC VAD com fallback RMS."""
-    if vad is not None:
+    """Decide se o bloco contém fala usando Silero VAD com fallback RMS."""
+    if vad is not None and isinstance(vad, tuple) and vad[0] == "silero":
         try:
-            pcm16 = np.clip(bloco, -1.0, 1.0)
-            pcm16 = (pcm16 * 32767).astype(np.int16).tobytes()
-            return vad.is_speech(pcm16, SAMPLE_RATE)
+            import torch
+            modelo = vad[1]
+            tensor = torch.from_numpy(bloco).float()
+            confianca = modelo(tensor, SAMPLE_RATE).item()
+            return confianca >= 0.5
         except Exception:
-            logger.debug("Falha no WebRTC VAD; usando fallback RMS.", exc_info=True)
+            logger.debug("Falha no Silero VAD; usando fallback RMS.", exc_info=True)
 
     rms = float(np.sqrt(np.mean(bloco ** 2)))
     return rms >= SILENCE_THRESHOLD

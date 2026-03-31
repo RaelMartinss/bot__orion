@@ -57,6 +57,15 @@ PROTOCOLO DE AUTONOMIA (JARVIS):
 - SELF-HEALING: Se um comando falhar porque falta um programa, use `verificar_saude_sistema` para confirmar, depois ofereça instalar via `instalar_ferramenta`.
 - PROATIVIDADE: Se `verificar_saude_sistema` retornar [PODE_INSTALAR: ...], mencione proativamente que pode evoluir o sistema.
 
+PROTOCOLO DE ERRO INTELIGENTE (OBRIGATÓRIO):
+Quando uma tool retornar um erro com prefixo estruturado, aja assim:
+- [AUTO_REPAIR]: O sistema se reparou. Informe o usuário com naturalidade ("Tive um probleminha técnico mas já resolvi — pode tentar de novo.") e execute o comando novamente sem precisar que o usuário repita.
+- [ERRO_REDE]: Informe que não há internet para esse site agora e sugira tentar mais tarde.
+- [ERRO_TIMEOUT]: Informe que o site demorou, sugira tentar novamente.
+- [ERRO_REPARAVEL]: Tente resolver por conta própria antes de pedir ajuda ao usuário.
+- [ERRO_TOOL:...]: Analise o erro, tente uma abordagem alternativa. NUNCA mostre a mensagem de erro crua ao usuário.
+⚠️ PROIBIDO exibir stack traces, mensagens de erro técnicas ou pedir ao usuário para rodar comandos no terminal.
+
 DIRETRIZ CRÍTICA DE EXECUÇÃO:
 ⚠️ É ESTUDANTEMENTE PROIBIDO pedir ao usuário para abrir o CMD/PowerShell ou para fazer os passos "manualmente". Se o usuário pediu a ação, VOCÊ OBRIGATORIAMENTE deve executar usando a tool `executar_terminal`.
 ⚠️ SE UMA TASK DO EXECUTAR_TERMINAL FALHAR (Ex: "O sistema não pode encontrar o arquivo especificado"), VOCÊ NÃO PODE DESISTIR. É OBRIGATÓRIO que você use os seus próprios recursos investigativos no Windows (rodando `dir /s \nome` ou similar no `executar_terminal`) para descobrir onde está o problema e consertá-lo sozinho. Não delegue a busca ou execução ao usuário. Seja implacável e resiliente na solução de erros.
@@ -254,7 +263,7 @@ TOOLS = [
     },
     {
         "name": "browser_goto",
-        "description": "Navega para uma URL ou realiza uma busca rápida no Google. Abre o navegador visível.",
+        "description": "OBRIGATÓRIO quando o usuário pede para ABRIR um site (ex: 'abra o site do G1', 'abre o diolinux'). Navega para a URL no navegador visível. Use SEMPRE antes de buscar notícias ou conteúdo de um site específico.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -659,10 +668,35 @@ async def _run_tool(tool_name: str, args: dict, user_id=0, notifier_callback=Non
             return await executar_manutencao(acao, permitir)
             
     except Exception as e:
+        err_str = str(e)
         logger.error(f"Erro na tool {tool_name}: {e}")
-        return f"Erro ao executar {tool_name}: {e}"
-        
-    return f"Ferramenta desconhecida."
+
+        # Auto-diagnóstico: detecta problemas conhecidos e tenta remediar
+        if "Executable doesn't exist" in err_str or "playwright install" in err_str:
+            logger.warning("Playwright sem browser. Instalando Chromium automaticamente...")
+            try:
+                import asyncio as _aio
+                proc = await _aio.create_subprocess_exec(
+                    "playwright", "install", "chromium",
+                    stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+                )
+                await proc.wait()
+                # Reset singleton para forçar re-inicialização
+                from utils.browser_manager import BrowserManager
+                BrowserManager._instance = None
+                return "[AUTO_REPAIR] Chromium instalado. Tente o comando novamente — o navegador já está pronto."
+            except Exception as install_err:
+                return f"[ERRO_REPARAVEL] Playwright sem browser. Tentei instalar mas falhou: {install_err}. Oriente o usuário a rodar: playwright install"
+
+        if "net::ERR_NAME_NOT_RESOLVED" in err_str or "net::ERR_INTERNET_DISCONNECTED" in err_str:
+            return "[ERRO_REDE] Sem conexão com a internet para acessar esse site agora."
+
+        if "TimeoutError" in err_str or "timeout" in err_str.lower():
+            return f"[ERRO_TIMEOUT] O site demorou demais para responder. Tente novamente ou verifique sua conexão."
+
+        return f"[ERRO_TOOL:{tool_name}] {err_str[:300]}"
+
+    return "[FERRAMENTA_DESCONHECIDA]"
 
 
 async def run_orchestrator(user_text: str, chat_history: list = None, user_id: int = 0, is_mic: bool = False, notifier_callback=None, pending_context: dict | None = None) -> dict:
@@ -819,7 +853,8 @@ _INSTALL_CMDS: dict[str, list[str]] = {
 }
 
 _POST_INSTALL: dict[str, list[str]] = {
-    "ollama": ["ollama pull mistral"],
+    # qwen2.5:3b é pequeno (~2GB) e suporta tool calling nativamente
+    "ollama": ["ollama pull qwen2.5:3b"],
 }
 
 
@@ -1198,15 +1233,41 @@ async def _run_openai_fallback(user_id, user_text, messages, system_prompt, chat
         return await _run_local_fallback(user_text, chat_history, user_id=user_id, messages=messages, system_prompt=system_prompt, notifier_callback=notifier_callback)
 
 
+async def _instalar_ferramenta_silenciosa(modelo_ollama: str) -> None:
+    """Baixa um modelo Ollama em background sem interação com o usuário."""
+    import asyncio
+    logger.info("Iniciando download silencioso: ollama pull %s", modelo_ollama)
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            f"ollama pull {modelo_ollama}",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=600)
+        logger.info("Download concluído: %s", modelo_ollama)
+    except Exception as e:
+        logger.error("Falha ao baixar %s: %s", modelo_ollama, e)
+
+
+# Modelos Ollama com suporte nativo a tool calling (ordem de preferência)
+_MODELOS_COM_TOOLS = ["qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "llama3.1:8b", "mistral"]
+
+
 async def _ollama_modelo_disponivel() -> str | None:
-    """Retorna o nome do primeiro modelo disponível no Ollama, ou None se offline."""
+    """Retorna o melhor modelo disponível no Ollama (prefere modelos com tool calling)."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get("http://localhost:11434/api/tags")
             if resp.status_code == 200:
-                models = resp.json().get("models", [])
-                if models:
-                    return models[0]["name"]
+                instalados = [m["name"] for m in resp.json().get("models", [])]
+                if not instalados:
+                    return None
+                # Prefere modelos com suporte a tools
+                for preferido in _MODELOS_COM_TOOLS:
+                    if preferido in instalados:
+                        return preferido
+                # Fallback: qualquer modelo disponível
+                return instalados[0]
     except Exception:
         pass
     return None
@@ -1258,7 +1319,8 @@ async def _run_local_fallback(user_text, chat_history, user_id=0, messages=None,
         await notifier_callback(f"🛡️ Desconectado da Matrix. Operando em contingência autônoma com `{modelo}`.")
 
     tools_ollama = _converter_tools_para_ollama(TOOLS)
-    
+    _tools_suportados = True  # assume suporte; desliga se receber 400
+
     # Prepara histórico de mensagens pro Ollama
     ollama_msgs = [{"role": "system", "content": system_prompt + "\n[AVISO CRÍTICO: VOCÊ ESTÁ OFFLINE. USE AS FERRAMENTAS DISPONÍVEIS PARA CONCLUIR SUAS AÇÕES] "}]
     for m in messages:
@@ -1280,38 +1342,79 @@ async def _run_local_fallback(user_text, chat_history, user_id=0, messages=None,
                     logger.warning("Timeout global do Ollama local atingido.")
                     break
                     
-                resp = await client.post("http://localhost:11434/api/chat", json={
-                    "model": modelo,
-                    "messages": ollama_msgs,
-                    "tools": tools_ollama,
-                    "stream": False,
-                })
-                
+                payload: dict = {"model": modelo, "messages": ollama_msgs, "stream": False}
+                if tools_ollama and _tools_suportados:
+                    payload["tools"] = tools_ollama
+
+                resp = await client.post("http://localhost:11434/api/chat", json=payload)
+
                 if resp.status_code != 200:
-                    logger.error("Erro na API de Chat do Ollama: %s", resp.text)
+                    err_text = resp.text
+                    if resp.status_code == 400 and "does not support tools" in err_text and _tools_suportados:
+                        logger.warning("Modelo '%s' não suporta tools. Baixando qwen2.5:3b em background.", modelo)
+                        _tools_suportados = False
+                        # Baixa modelo com suporte a tools em background para próximas sessões
+                        import asyncio as _asyncio
+                        _asyncio.create_task(_instalar_ferramenta_silenciosa("qwen2.5:3b"))
+                        # Sem tools: instrui o modelo a NÃO simular chamadas nem inventar URLs/resultados
+                        ollama_msgs[0]["content"] = (
+                            system_prompt +
+                            "\n\n[RESTRIÇÃO CRÍTICA — MODO TEXTO SEM FERRAMENTAS]"
+                            "\nVocê NÃO tem acesso a internet, navegador, buscas ou qualquer ferramenta nesta sessão."
+                            "\nÉ PROIBIDO simular chamadas de ferramentas, inventar URLs, inventar resultados de busca ou fabricar notícias/conteúdo."
+                            "\nSe o usuário pedir para abrir sites, fazer buscas ou executar ações no PC, diga claramente que não consegue agora e sugira reconectar a internet."
+                            "\nResponda apenas com informações que você já sabe com certeza."
+                        )
+                        if notifier_callback:
+                            await notifier_callback(
+                                f"⚠️ `{modelo}` não suporta ferramentas.\n"
+                                "Baixando `qwen2.5:3b` em background para próximas sessões.\n"
+                                "Por enquanto opero sem acesso a internet ou ao PC."
+                            )
+                        continue
+                    logger.error("Erro na API de Chat do Ollama: %s", err_text)
                     return {"response": f"🔌 Falha local. O Ollama retornou código {resp.status_code}.", "new_history": chat_history}
                     
                 data = resp.json().get("message", {})
                 content = data.get("content", "")
                 tool_calls = data.get("tool_calls", [])
                 
-                # Regex Fallback de Segurança caso modelos muito rasos (ex: 8b limitados) emitam tools JSON malformados como texto livre (alucinação)
+                # ── Fallback 1: JSON malformado — {"name": "...", "arguments": {...}} ──
                 if not tool_calls and content and "{" in content and "}" in content:
-                    import re
-                    m = re.search(r'\{(?:[^{}]*)\"name\"\s*:\s*\"([^\"]+)\"(?:[^{}]*)\}', content)
-                    if m:
+                    import re as _re
+                    _m = _re.search(r'\{(?:[^{}]*)\"name\"\s*:\s*\"([^\"]+)\"(?:[^{}]*)\}', content)
+                    if _m:
                         try:
-                            # Pega do primeiro '{' ao último '}'
                             t_json = json.loads(content[content.find("{"):content.rfind("}")+1])
                             if "name" in t_json:
                                 tool_calls = [{"function": {"name": t_json["name"], "arguments": t_json.get("arguments", {})}}]
                         except Exception as e:
-                            logger.error("Falhou ao tentar extrair tool via RegEx fallback no Ollama: %s", e)
+                            logger.error("Fallback JSON Ollama falhou: %s", e)
+
+                # ── Fallback 2: Texto simulado — `tool_name("arg")` (alucinação qwen/gemma) ──
+                # Quando o modelo finge que está chamando ferramentas em formato markdown/código,
+                # extraímos e executamos as ferramentas de verdade, descartando os resultados inventados.
+                if not tool_calls and content:
+                    import re as _re
+                    _PRIMEIRO_PARAM = {
+                        "buscar_web": "query", "ler_url": "url",
+                        "browser_goto": "url", "browser_click": "selector",
+                        "browser_fill": "selector", "abrir_app": "nome",
+                    }
+                    _fake_matches = _re.findall(r'`(\w+)\(([^)]*)\)`', content)
+                    for _fn, _raw in _fake_matches:
+                        if _fn in _PRIMEIRO_PARAM:
+                            _arg_val = _raw.strip().strip("\"'")
+                            logger.warning("Alucinação detectada: modelo simulou '%s(%s)'. Executando de verdade.", _fn, _arg_val)
+                            tool_calls.append({"function": {"name": _fn, "arguments": {_PRIMEIRO_PARAM[_fn]: _arg_val}}})
+                    if tool_calls:
+                        # Descarta o conteúdo alucinado — os resultados reais virão das ferramentas
+                        data["content"] = ""
 
                 ollama_msgs.append(data)
-                
+
                 if not tool_calls:
-                    # Finalizou o pensamento ! Devolve resposta natural.
+                    # Finalizou o pensamento — devolve resposta natural.
                     chat_history.append({"role": "user", "content": user_text})
                     chat_history.append({"role": "assistant", "content": content})
                     return {"response": f"🤖 _(Modo Local — {modelo})_\n{content}", "new_history": chat_history[-20:]}

@@ -34,7 +34,11 @@ async def _responder(update: Update, texto: str, voice_active: bool) -> None:
         audio_path = await gerar_audio(texto)
         if audio_path:
             try:
-                await update.message.reply_voice(voice=open(audio_path, "rb"), caption=texto)
+                # Telegram limita caption a 1024 chars — envia texto completo separado se necessário
+                caption = texto[:1021] + "…" if len(texto) > 1024 else texto
+                await update.message.reply_voice(voice=open(audio_path, "rb"), caption=caption)
+                if len(texto) > 1024:
+                    await update.message.reply_text(texto, parse_mode="Markdown")
             finally:
                 limpar_audio(audio_path)
             return
@@ -83,13 +87,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             r'blz|beleza|opa|falou|tmj|vlw)\b',
             texto_para_ia.lower()
         )
-        if intent.get("action") == "desconhecido" and _parece_comando:
+        # Comandos de navegação web vão direto ao orchestrator — o ML confunde com jogos
+        _BROWSER_RE = (
+            r'\b(site|web|internet|pesquisa|pesquisar|google)\b'
+            r'|\b(abr[ae]|abrir)\b.{0,20}\b(site|página|pagina|url|link)\b'
+            r'|\b(acessa|acessar|entra em|entrar em|vai em|vá em)\b'
+            r'|\.com\b|\.com\.br\b|https?://'
+        )
+        _parece_browser = bool(re.search(_BROWSER_RE, texto_para_ia.lower()))
+
+        if intent.get("action") == "desconhecido" and _parece_comando and not _parece_browser:
             ml_intent = interpretar_comando(texto_para_ia)
             if ml_intent:
                 intent = ml_intent
 
         # Regex + ML falharam → Claude extrai intent estruturado (rápido, sem orchestrator)
-        if intent.get("action") == "desconhecido" and _parece_comando:
+        if intent.get("action") == "desconhecido" and _parece_comando and not _parece_browser:
             from utils.claude_client import extrair_intent_estruturado
             structured = await extrair_intent_estruturado(texto_para_ia)
             if structured and structured.get("action") not in ("desconhecido", "conversa", None):
@@ -109,6 +122,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             salvar_preferencia(user_id, "time_favorito", intent["query"])
         mem = carregar_memoria_longa(user_id=update.effective_user.id)
         voice_active = mem.get("preferencias", {}).get("voice_active", False)
+        # Resultado especial: imagem QR
+        from utils.executor import QR_IMAGE_PREFIX
+        if isinstance(resultado, str) and resultado.startswith(QR_IMAGE_PREFIX):
+            import os
+            img_path = resultado[len(QR_IMAGE_PREFIX):]
+            try:
+                await update.message.reply_photo(
+                    photo=open(img_path, "rb"),
+                    caption="📱 Escaneie pelo WhatsApp → *Aparelhos Conectados* → *Conectar dispositivo*",
+                    parse_mode="Markdown"
+                )
+            finally:
+                try: os.unlink(img_path)
+                except Exception: pass
+            await interface_bridge.emit_state("idle", "Sistema em espera.")
+            from telegram.ext import ConversationHandler
+            return ConversationHandler.END
         await interface_bridge.emit_state("falando", resultado[:160])
         await _responder(update, resultado, voice_active)
         await interface_bridge.emit_state("idle", "Sistema em espera.")

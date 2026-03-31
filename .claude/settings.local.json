@@ -15,7 +15,29 @@
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\raelmartins\\\\Desktop\\\\travel && npm install\")",
       "Bash(uv pip:*)",
       "Bash(uv run python -c \":*)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(ls -1 /c/Users/raelmartins/Documents/bot__orion/handlers/*.py)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(curl -s -X POST http://localhost:11434/api/chat -H \"Content-Type: application/json\" -d \"{\"\"model\"\":\"\"gemma3:4b\"\",\"\"messages\"\":[{\"\"role\"\":\"\"user\"\",\"\"content\"\":\"\"oi\"\"}],\"\"tools\"\":[{\"\"type\"\":\"\"function\"\",\"\"function\"\":{\"\"name\"\":\"\"teste\"\",\"\"description\"\":\"\"teste\"\",\"\"parameters\"\":{\"\"type\"\":\"\"object\"\",\"\"properties\"\":{}}}}],\"\"stream\"\":false}\")",
+      "Bash(python3 -c \"import sys,json; [print\\(m[''''name'''']\\) for m in json.load\\(sys.stdin\\)[''''models'''']]\")",
+      "Bash(tasklist)",
+      "Bash(grep -l \"whatsapp\\\\|notif\\\\|alert\\\\|schedule\" c:UsersraelmartinsDocumentsbot__orionutils/*.py c:UsersraelmartinsDocumentsbot__orionplugins/*.py)",
+      "Bash(docker --version)",
+      "Bash(npm --version)",
+      "Bash(where node:*)",
+      "Bash(where npm:*)",
+      "Bash(npm install:*)",
+      "Bash(npm show:*)",
+      "Bash(npm search:*)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\raelmartins\\\\Documents\\\\bot__orion\\\\whatsapp_server\")",
+      "Bash(npm init:*)",
+      "Bash(node -e \"const http = require\\(''http''\\); http.get\\(''http://localhost:3131/status'', r => { let d=''''; r.on\\(''data'',c=>d+=c\\); r.on\\(''end'',\\(\\)=>console.log\\(''STATUS:'', d\\)\\); }\\).on\\(''error'', e => console.log\\(''OFFLINE:'', e.message\\)\\);\")",
+      "Bash(node -e \":*)",
+      "Bash(taskkill /F /IM chrome.exe)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill //F //IM chrome.exe)",
+      "Bash(taskkill //F //IM node.exe)"
     ]
   }
 }

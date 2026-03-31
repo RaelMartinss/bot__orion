@@ -24,6 +24,7 @@ from handlers.controle import pausar, proxima, anterior
 import utils.mic_listener as mic_listener
 from utils import interface_bridge
 from utils.daily_alerts import start_daily_alerts
+from utils.smart_alerts import start_smart_alerts
 from utils import vision
 
 from dotenv import load_dotenv
@@ -131,6 +132,18 @@ async def _run():
         mic_listener.iniciar()
 
         await start_daily_alerts(app.bot, user_ids=[ADMIN_ID])
+        await start_smart_alerts(app.bot, user_ids=[ADMIN_ID])
+
+        # Inicia servidor WhatsApp em background (reconecta sessão salva automaticamente)
+        def _iniciar_wpp():
+            try:
+                from utils.whatsapp_client import iniciar_servidor
+                res = iniciar_servidor(aguardar_conexao=True, timeout=60)
+                logger.info(f"📱 WhatsApp: {res}")
+            except Exception as _e:
+                logger.warning(f"WhatsApp servidor: {_e}")
+        import threading
+        threading.Thread(target=_iniciar_wpp, daemon=True, name="wpp-init").start()
 
         # Módulo de Arquivos: inicia indexação em background ao ligar o bot
         try:

@@ -8,12 +8,21 @@ import logging
 import os
 import subprocess
 
+# Sentinel compartilhado com handlers/voice.py para respostas especiais
+QR_IMAGE_PREFIX = "_QR_IMAGE:"
+
 import webbrowser
 from urllib.parse import quote_plus
 
 from utils.apps_config import KNOWN_APPS, IDE_COMMANDS
 
 logger = logging.getLogger(__name__)
+
+
+async def _fechar_browser_async() -> None:
+    from utils.browser_manager import get_browser_manager
+    bm = await get_browser_manager()
+    await bm.close()
 
 
 def executar_intent(intent: dict) -> str:
@@ -110,6 +119,110 @@ def executar_intent(intent: dict) -> str:
     if action == "anterior":
         from handlers.controle import ctrl_anterior
         return ctrl_anterior()
+
+    if action == "whatsapp_enviar":
+        from utils.whatsapp_client import enviar_mensagem, iniciar_servidor, status as wpp_status, salvar_contato
+        destinatario = intent.get("query") or query or ""
+        mensagem = intent.get("message") or ""
+
+        # Número embutido no texto → salva contato automaticamente
+        phone = intent.get("phone")
+        phone_name = intent.get("phone_name") or destinatario
+        if phone and phone_name:
+            salvar_contato(phone_name, phone)
+            if not destinatario:
+                destinatario = phone_name
+
+        if not destinatario:
+            return "Para quem devo enviar a mensagem? Diga: *'manda mensagem pro João que...'*"
+        if not mensagem:
+            if phone:
+                return f"✅ Contato *{phone_name}* salvo com o número {phone}. Qual mensagem devo enviar?"
+            return f"Qual mensagem devo enviar para *{destinatario}*?"
+        # Garante que servidor está pronto
+        st = wpp_status()
+        if not st.get("pronto"):
+            resultado_inicio = iniciar_servidor(aguardar_conexao=True, timeout=60)
+            if resultado_inicio == "qr":
+                return "📱 WhatsApp precisa ser conectado. Diga *'conecta whatsapp'* para ver o QR Code."
+            if resultado_inicio == "timeout":
+                return "⏳ WhatsApp demorou para iniciar. Tente novamente em alguns segundos."
+            if resultado_inicio.startswith("❌"):
+                return resultado_inicio
+        return enviar_mensagem(destinatario, mensagem)
+
+    if action == "whatsapp_status":
+        from utils.whatsapp_client import status, iniciar_servidor, servidor_online
+        if not servidor_online():
+            res = iniciar_servidor()
+            return f"Servidor iniciado. {res}"
+        st = status()
+        estado = st.get("estado", "desconhecido")
+        emoji = {"conectado": "✅", "qr": "📱", "desconectado": "❌", "inicializando": "⏳"}.get(estado, "❓")
+        return f"{emoji} WhatsApp: *{estado}*"
+
+    if action == "whatsapp_qr":
+        from utils.whatsapp_client import get_qr, iniciar_servidor, servidor_online
+        if not servidor_online():
+            iniciar_servidor(aguardar_conexao=False)
+            import time; time.sleep(5)
+        qr = get_qr()
+        if not qr:
+            st = __import__("utils.whatsapp_client", fromlist=["status"]).status()
+            if st.get("pronto"):
+                return "✅ WhatsApp já está conectado! Não precisa escanear QR."
+            return "⏳ QR Code ainda não disponível — o servidor ainda está inicializando. Aguarde alguns segundos e repita."
+        # Gera imagem PNG do QR Code
+        try:
+            import qrcode as _qr_lib
+            import tempfile, os
+            img = _qr_lib.make(qr)
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            img.save(tmp.name)
+            tmp.close()
+            return f"{QR_IMAGE_PREFIX}{tmp.name}"
+        except Exception:
+            return f"📱 Escaneie pelo WhatsApp → *Aparelhos Conectados*:\n`{qr[:400]}`"
+
+    if action == "configurar_pendrive":
+        from utils.presence import definir_pendrive_presenca, listar_pendrives
+        pendrives = listar_pendrives()
+        if not pendrives:
+            return "Nenhum pendrive detectado. Conecte o pendrive e repita o comando."
+        if len(pendrives) == 1:
+            return definir_pendrive_presenca()
+        listagem = "\n".join(f"• {p['letra']}: — {p['label']}" for p in pendrives)
+        return (
+            f"Encontrei {len(pendrives)} pendrives conectados:\n{listagem}\n\n"
+            f"Diga qual usar: *'configura presença com o pendrive X'*"
+        )
+
+    if action == "reiniciar_video":
+        from handlers.controle import ctrl_reiniciar_video
+        return ctrl_reiniciar_video()
+
+    if action == "browser_abrir":
+        webbrowser.open("https://www.google.com")
+        return "🌐 Navegador aberto."
+
+    if action == "browser_fechar":
+        # Fecha via Playwright se houver sessão ativa, senão Alt+F4 na janela do browser
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(_fechar_browser_async())
+            else:
+                loop.run_until_complete(_fechar_browser_async())
+        except Exception:
+            import pyautogui, pygetwindow as gw
+            for janela in gw.getAllWindows():
+                if any(b in janela.title.lower() for b in ["chrome", "firefox", "edge", "chromium"]):
+                    janela.activate()
+                    import time; time.sleep(0.2)
+                    pyautogui.hotkey("alt", "f4")
+                    break
+        return "🌐 Navegador fechado."
 
     if action == "create_project":
         return _criar_projeto(

@@ -63,6 +63,15 @@ def ctrl_anterior() -> str:
     return "⏮️ Faixa anterior."
 
 
+def ctrl_reiniciar_video() -> str:
+    if _focar_youtube():
+        pyautogui.press("0")             # tecla '0' reinicia o vídeo no YouTube
+        return "🔁 Vídeo reiniciado do início."
+    # Fallback: Home key funciona em vários players
+    pyautogui.press("home")
+    return "🔁 Reiniciando vídeo."
+
+
 # ── Handlers Telegram ─────────────────────────────────────────────────────────
 
 async def pausar(update: Update, context: ContextTypes.DEFAULT_TYPE):
